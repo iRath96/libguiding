@@ -191,8 +191,8 @@ void render() {
 
     {
         ImGui::Begin("Guiding");
-        ImGui::Text("Samples:  %d"  , demo.guiding.samplesSoFar());
-        ImGui::Text("Nodes:    %d"  , demo.guiding.sampling().nodeCount());
+        ImGui::Text("Samples:  %zu" , demo.guiding.samplesSoFar());
+        ImGui::Text("Nodes:    %zu" , demo.guiding.sampling().nodeCount());
         ImGui::Text("Estimate: %.4f", float(demo.guiding.sampling().estimate()));
 
         texIntegrand.draw([](ImVec2 pos) { return falseColor(demo.integrand(pos)); });
