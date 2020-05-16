@@ -1,5 +1,5 @@
 #include <imgui.h>
-#include <GL/gl.h>
+#include <gl.h>
 
 #include <vector>
 #include <functional>
