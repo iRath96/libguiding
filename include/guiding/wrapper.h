@@ -79,9 +79,9 @@ public:
             x[0] /= 1 - settings.uniformProb;
             m_sampling.sample(
                 settings.child,
+                pdf,
                 x,
-                std::forward<Args>(params)...,
-                pdf
+                std::forward<Args>(params)...
             );
         }
 
@@ -144,6 +144,8 @@ private:
         m_training.build(settings.child);
         m_sampling = m_training;
         m_training.refine(settings.child);
+
+        //m_sampling.dump("");
 
         m_nextMilestone *= 2;
     }

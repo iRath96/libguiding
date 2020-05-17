@@ -1,3 +1,4 @@
+find_package(glfw3 3.3 REQUIRED)
 find_package(OpenGL REQUIRED)
 INCLUDE ( ./imgui/CMakeLists.txt )
 
@@ -7,7 +8,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-foreach(DEMO IN ITEMS demo-2d)
+foreach(DEMO IN ITEMS demo-2d demo-5d)
   add_executable(${DEMO} ${DEMO}.cpp)
   set_target_properties(${DEMO} PROPERTIES CXX_STANDARD 17)
 
@@ -20,3 +21,10 @@ foreach(DEMO IN ITEMS demo-2d)
     PRIVATE ${IMGUI_LIBRARIES}
   )
 endforeach(DEMO)
+
+add_executable(test test.cpp)
+set_target_properties(test PROPERTIES CXX_STANDARD 17)
+target_link_libraries(test PUBLIC glfw ${OPENGL_LIBRARIES} "-framework CoreFoundation")
+target_include_directories(test
+  PRIVATE ${OPENGL_INCLUDE_DIR}
+)

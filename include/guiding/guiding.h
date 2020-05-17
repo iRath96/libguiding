@@ -128,6 +128,12 @@ public:
             density = std::sqrt(density);
     }
 
+    void refine(const Settings &settings) {
+        aux     = Aux();
+        weight  = 0.f;
+        density = 0.f;
+    }
+
     Float pdf(const Settings &settings) const {
         return density;
     }
@@ -139,9 +145,45 @@ public:
     const atomic<Aux> &estimate() const {
         return aux;
     }
+
+    size_t totalNodeCount() const {
+        return 1;
+    }
+
+    void dump(const std::string &prefix) const {
+        std::cout << prefix << "Leaf (density=" << density << ", weight=" << weight << ")" << std::endl;
+    }
 };
 
-// Wrapper<Sample, KDTree<3, BTree<2, Leaf<Spectrum>>>>
+template<typename ...Args>
+struct is_empty {
+    enum { value = 0 };
+};
+
+template<>
+struct is_empty<> {
+    enum { value = 1 };
+};
+
+//
+// these meta-programming hacks might look horrendous,
+// but they are not quite as horrible as OpenGL!
+//
+
+template<typename...>
+struct RecurseChild {
+    typedef void Type;
+};
+
+template<typename Child, typename Head, typename ...Tail>
+struct RecurseChild<Child, Head, Tail...> {
+    typedef typename RecurseChild<Child, Tail...>::Type::Child Type;
+};
+
+template<typename Child>
+struct RecurseChild<Child> {
+    typedef Child Type;
+};
 
 }
 

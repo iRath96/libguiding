@@ -50,10 +50,6 @@ private:
             children[0] = 0;
         }
 
-        void reset() {
-            value = Child();
-        }
-
         int depth(const std::vector<TreeNode> &nodes) const {
             if (isLeaf())
                 return 1;
@@ -78,13 +74,13 @@ private:
     std::vector<TreeNode> m_nodes;
 
 public:
+    Aux   aux;
+    Float weight;
+    Float density;
+
     Tree() {
         // haven't learned anything yet, resort to uniform sampling
         setUniform();
-    }
-
-    std::string typeId() const {
-        return std::string("BTree<") + std::to_string(Dimension) + ", " + typeid(Child).name() + ">";
     }
 
     // methods for reading from the tree
@@ -95,13 +91,31 @@ public:
 
     template<typename ...Args>
     Float pdf(const Settings &settings, const Vector &x, Args&&... params) const {
-        return m_nodes[indexAt(x)].value.pdf(
+        if constexpr (!is_empty<Args...>::value)
+            return m_nodes[indexAt(x)].value.pdf(
+                settings.child,
+                std::forward<Args>(params)...
+            );
+        
+        return m_nodes[indexAt(x)].value.density;
+    }
+
+    template<typename ...Args>
+    const typename RecurseChild<Child, Args...>::Type &sample(
+        const Settings &settings,
+        Float &pdf,
+        Vector &x,
+        Args&&... params
+    ) const {
+        return m_nodes[indexAt(x)].value.sample(
             settings.child,
+            pdf,
             std::forward<Args>(params)...
         );
     }
 
-    const Child &sample(const Settings &settings, Vector &x, Float &pdf) const {
+    template<>
+    const Child &sample(const Settings &settings, Float &pdf, Vector &x) const {
         pdf = 1;
 
         Vector base, scale;
@@ -142,11 +156,15 @@ public:
         }
 
         int depth;
-        indexAt(x, depth);
-        Float size = 1 / Float(1 << depth);
+        Vector cellMin, cellMax;
+        indexAt(x, depth, cellMin, cellMax);
         
+        Float volume = 1;
         Vector originMin, originMax, zero, one;
         for (int dim = 0; dim < Dimension; ++dim) {
+            Float size = cellMax[dim] - cellMin[dim];
+            volume *= size;
+
             originMin[dim] = x[dim] - size/2;
             originMax[dim] = x[dim] + size/2;
             zero[dim] = 0;
@@ -158,7 +176,7 @@ public:
             0,
             originMin, originMax,
             zero, one,
-            density, aux, weight / (size * size),
+            density, aux, weight / volume,
             std::forward<Args>(params)...
         );
     }
@@ -185,10 +203,13 @@ public:
         Float norm = m_nodes[0].value.density;
 
         for (auto &node : m_nodes) {
+            assert(!isnan(node.value.density));
             node.value.density = node.value.density / norm;
             if (!settings.leafReweighting)
                 node.value.aux = node.value.aux / m_nodes[0].value.weight;
         }
+
+        updateRoot();
     }
 
     void refine(const Settings &settings) {
@@ -205,31 +226,95 @@ public:
         return m_nodes.size();
     }
 
+    size_t totalNodeCount() const {
+        size_t count = 0;
+        for (auto &node : m_nodes)
+            if (node.isLeaf())
+                count += node.value.totalNodeCount();
+        return count;
+    }
+
     const atomic<Aux> &estimate() const {
         return m_nodes[0].value.estimate();
     }
 
+    void dump(const std::string &prefix) const {
+        std::cout << prefix << "Tree (density=" << density << ", weight=" << weight << ")" << std::endl;
+        for (auto &node : m_nodes)
+            if (node.isLeaf())
+                node.value.dump(prefix + "  ");
+    }
+
+    void enumerate(
+        std::function<void (const Child &, const Vector &, const Vector &)> callback
+    ) const {
+        Vector zero, one;
+        for (int dim = 0; dim < Dimension; ++dim) {
+            zero[dim] = 0;
+            one[dim] = 1;
+        }
+
+        enumerate(callback, 0, zero, one);
+    }
+
 private:
+    void enumerate(
+        std::function<void (const Child &, const Vector &, const Vector &)> callback,
+        int index,
+        const Vector &min, const Vector &max
+    ) const {
+        auto &node = m_nodes[index];
+        if (node.isLeaf()) {
+            callback(node.value, min, max);
+            return;
+        }
+        
+        for (int childIndex = 0; childIndex < Arity; ++childIndex) {
+            int ci = node.children[childIndex];
+            Vector childMin = min;
+            Vector childMax = max;
+            this->boxForChild(childIndex, childMin, childMax, m_nodes[ci].data);
+
+            enumerate(callback, ci, childMin, childMax);
+        }
+    }
+
+    void updateRoot() {
+        density = m_nodes[0].value.density;
+        aux     = m_nodes[0].value.aux;
+        weight  = m_nodes[0].value.weight;
+    }
+
     void setUniform() {
         m_nodes.resize(1);
         m_nodes[0].markAsLeaf();
         m_nodes[0].value.density = 1;
         m_nodes[0].value.aux     = Aux();
         m_nodes[0].value.weight  = 0;
+
+        updateRoot();
     }
 
     size_t indexAt(const Vector &y) const {
         int depth;
-        return indexAt(y, depth);
+        Vector min, max;
+        return indexAt(y, depth, min, max);
     }
 
-    size_t indexAt(const Vector &y, int &depth) const {
+    size_t indexAt(const Vector &y, int &depth, Vector &min, Vector &max) const {
         Vector x = y;
+        for (int dim = 0; dim < Dimension; ++dim) {
+            min[dim] = 0;
+            max[dim] = 1;
+        }
 
         int index = 0;
         depth = 0;
         while (!m_nodes[index].isLeaf()) {
-            auto newIndex = m_nodes[index].children[this->childIndex(x, m_nodes[index].data)];
+            int childIndex = this->childIndex(x, m_nodes[index].data);
+            this->boxForChild(childIndex, min, max, m_nodes[index].data);
+
+            auto newIndex = m_nodes[index].children[childIndex];
             assert(newIndex > index);
             index = newIndex;
 
@@ -245,7 +330,8 @@ private:
             if (criterion >= settings.splitThreshold && depth < settings.maxDepth)
                 split(index);
             else {
-                m_nodes[index].reset();
+                // this node will not be refined further
+                m_nodes[index].value.refine(settings.child);
                 return;
             }
         }
@@ -309,21 +395,21 @@ private:
         if (node.isLeaf()) {
             auto &newNode = newNodes[newIndex];
 
-            if (settings.leafReweighting && node.value.weight < 1e-3) { // @todo why 1e-3?
-                // node received too few samples
-                newNode.value.weight = -1;
-                return;
-            }
-
             if (!settings.leafReweighting)
+                // @todo this only works for Leaf<…>!
                 newNode.value.weight = 1 / scale;
 
-            newNode.markAsLeaf();
             newNode.value.build(settings.child);
 
             if (!settings.leafReweighting)
                 newNode.value.weight = node.value.weight;
 
+            if (settings.leafReweighting && newNode.value.weight < 1e-3) { // @todo why 1e-3?
+                // node received too few samples
+                newNode.value.weight = -1;
+                return;
+            }
+     
             return;
         }
 
@@ -380,6 +466,9 @@ private:
             m_nodes.push_back(m_nodes[parentIndex]);
             this->afterSplit(m_nodes[childIndex + child].data);
         }
+
+        // get rid of wasted space
+        m_nodes[parentIndex].value = Child();
 
         for (int child = 0; child < Arity; ++child)
             // register new children
