@@ -1,5 +1,5 @@
-#ifndef HUSSAR_GUIDING_BTREEDISTRIBUTION_H
-#define HUSSAR_GUIDING_BTREEDISTRIBUTION_H
+#ifndef HUSSAR_GUIDING_BTREE_H
+#define HUSSAR_GUIDING_BTREE_H
 
 #include <guiding/guiding.h>
 
@@ -11,16 +11,25 @@
 
 namespace guiding {
 
-template<int D, typename V>
-class BTreeDistribution {
+template<int D, typename C>
+class BTree {
 public:
     static constexpr auto Dimension = D;
     static constexpr auto Arity = 1 << D;
 
-    typedef V Value;
+    typedef C Child;
+    typedef typename Child::Aux Aux;
     typedef VectorXf<Dimension> Vector;
 
-protected:
+    struct Settings {
+        Float splitThreshold = 0.002f;
+        bool leafReweighting = true;
+        bool doFiltering     = true; // box filter [Müller et al.]
+
+        typename Child::Settings child;
+    };
+
+private:
     struct TreeNode {
         /**
          * Indexed by a bitstring, where each bit describes the slab for one of the
@@ -29,11 +38,8 @@ protected:
          * The MSB corresponds to the last dimension of the vector.
          */
         std::array<int, Arity> children;
-        Float density;
-
-        atomic<Value> value; // the accumulation of the estimator (i.e., sum of integrand*weight)
-        atomic<Float> weight; // the acculumation of the sample weights (i.e., sum of weight)
-
+        Child value; // the accumulation of the estimator (i.e., sum of integrand*weight)
+        
         bool isLeaf() const {
             return children[0] == 0;
         }
@@ -42,23 +48,8 @@ protected:
             children[0] = 0;
         }
 
-        void splat(const Value &value, Float weight, bool secondMoment) {
-            assert(weight >= 0);
-            assert(value >= 0);
-
-            this->weight += weight;
-            this->value  += value * weight;
-
-            Float target = guiding::target(value);
-            if (secondMoment)
-                target *= target;
-            this->density += target * weight;
-        }
-
         void reset() {
-            density = 0;
-            value   = Value();
-            weight  = 0;
+            value = Child();
         }
 
         int depth(const std::vector<TreeNode> &nodes) const {
@@ -72,62 +63,43 @@ protected:
         }
 
         void write(std::ostream &os) const {
-            write(os, density);
             write(os, value);
-            write(os, weight);
             write(os, children);
         }
 
         void read(std::istream &is) {
-            read(is, density);
             read(is, value);
-            read(is, weight);
             read(is, children);
         }
     };
 
     std::vector<TreeNode> m_nodes;
 
-    Float m_splitThreshold = 0.002f;
-    bool m_leafReweighting = true;
-    bool m_doFiltering = true; // box filter [Müller et al.]
-    bool m_secondMoment = false; // second moment [Rath et al.]
-
 public:
-    BTreeDistribution() {
+    BTree() {
         // haven't learned anything yet, resort to uniform sampling
         setUniform();
     }
 
     std::string typeId() const {
-        return std::string("BTreeDistribution<") + std::to_string(Dimension) + ", " + typeid(Value).name() + ">";
+        return std::string("BTree<") + std::to_string(Dimension) + ", " + typeid(Child).name() + ">";
     }
-
-    // accessors for building settings
-
-    Float &splitThreshold() { return m_splitThreshold; }
-    const Float &splitThreshold() const { return m_splitThreshold; }
-
-    bool &leafReweighting() { return m_leafReweighting; }
-    const bool &leafReweighting() const { return m_leafReweighting; }
-
-    bool &doFiltering() { return m_doFiltering; }
-    const bool &doFiltering() const { return m_doFiltering; }
-
-    bool &secondMoment() { return m_secondMoment; }
-    const bool &secondMoment() const { return m_secondMoment; }
 
     // methods for reading from the tree
 
-    const atomic<Value> &at(const Vector &x) const {
+    const Child &at(const Settings &settings, const Vector &x) const {
         return m_nodes[indexAt(x)].value;
     }
 
-    Float pdf(const Vector &x) const {
-        return m_nodes[indexAt(x)].density;
+    template<typename ...Args>
+    Float pdf(const Settings &settings, const Vector &x, Args&&... params) const {
+        return m_nodes[indexAt(x)].value.pdf(
+            settings.child,
+            std::forward<Args>(params)...
+        );
     }
 
-    const atomic<Value> &sample(Vector &x, Float &pdf) const {
+    const Child &sample(const Settings &settings, Vector &x, Float &pdf) const {
         pdf = 1;
 
         Vector base;
@@ -148,7 +120,7 @@ public:
                     // we are collecting the sum of density for children with
                     // x[dim] = 0 in p[0], and x[dim] = 1 in p[1].
                     int ci = (child << dim) | childIndex;
-                    p[child & 1] += m_nodes[m_nodes[index].children[ci]].density;
+                    p[child & 1] += m_nodes[m_nodes[index].children[ci]].value.density;
                 }
                 
                 p[0] /= p[0] + p[1];
@@ -171,8 +143,8 @@ public:
             scale /= 2;
         }
 
-        pdf *= m_nodes[index].density;
-        assert(m_nodes[index].density > 0);
+        pdf *= m_nodes[index].value.density;
+        assert(m_nodes[index].value.density > 0);
         
         for (int dim = 0; dim < Dimension; ++dim) {
             x[dim] *= scale;
@@ -184,9 +156,14 @@ public:
 
     // methods for writing to the tree
 
-    void splat(const Vector &x, const Value &value, Float weight) {
-        if (!m_doFiltering) {
-            m_nodes[indexAt(x)].splat(value, weight, m_secondMoment);
+    template<typename ...Args>
+    void splat(const Settings &settings, Float density, const Aux &aux, Float weight, const Vector &x, Args&&... params) {
+        if (!settings.doFiltering) {
+            m_nodes[indexAt(x)].value.splat(
+                settings.child,
+                density, aux, weight,
+                std::forward<Args>(params)...
+            );
             return;
         }
 
@@ -202,10 +179,12 @@ public:
         }
         
         splatFiltered(
+            settings,
             0,
             originMin, originMax,
             zero, 1.f,
-            value, weight / (size * size)
+            density, aux, weight / (size * size),
+            std::forward<Args>(params)...
         );
     }
 
@@ -215,12 +194,12 @@ public:
      * After building, each leaf node will have a value that is an estimate over
      * the mean value over the leaf node size (i.e., its size has been cancelled out).
      */
-    void build() {
+    void build(const Settings &settings) {
         std::vector<TreeNode> newNodes;
         newNodes.reserve(m_nodes.size());
         
-        build(0, newNodes);
-        if (newNodes[0].weight <= 0 || newNodes[0].density == 0) {
+        build(settings, 0, newNodes);
+        if (newNodes[0].value.weight <= 0 || newNodes[0].value.density == 0) {
             // you're building a tree without samples. good luck with that.
             setUniform();
             return;
@@ -228,28 +207,17 @@ public:
         
         // normalize density
         m_nodes = newNodes;
-        Float norm = m_nodes[0].density;
+        Float norm = m_nodes[0].value.density;
 
         for (auto &node : m_nodes) {
-            node.density /= norm;
-            if (!m_leafReweighting)
-                node.value = node.value / m_nodes[0].weight;
+            node.value.density = node.value.density / norm;
+            if (!settings.leafReweighting)
+                node.value.aux = node.value.aux / m_nodes[0].value.weight;
         }
     }
 
-    void refine(size_t index = 0, Float scale = 1) {
-        if (m_nodes[index].isLeaf()) {
-            Float criterion = m_nodes[index].density / scale;
-            if (criterion >= splitThreshold())
-                split(index);
-            else {
-                m_nodes[index].reset();
-                return;
-            }
-        }
-        
-        for (int child = 0; child < Arity; ++child)
-            refine(m_nodes[index].children[child], scale * Arity);
+    void refine(const Settings &settings) {
+        refine(settings, 0);
     }
 
     // methods that provide statistics
@@ -262,17 +230,17 @@ public:
         return m_nodes.size();
     }
 
-    const atomic<Value> &estimate() const {
-        return m_nodes[0].value;
+    const atomic<Aux> &estimate() const {
+        return m_nodes[0].value.estimate();
     }
 
 private:
     void setUniform() {
         m_nodes.resize(1);
         m_nodes[0].markAsLeaf();
-        m_nodes[0].density = 1;
-        m_nodes[0].value   = Value();
-        m_nodes[0].weight  = 0;
+        m_nodes[0].value.density = 1;
+        m_nodes[0].value.aux     = Aux();
+        m_nodes[0].value.weight  = 0;
     }
 
     size_t indexAt(const Vector &y) const {
@@ -307,11 +275,29 @@ private:
         return index;
     }
 
+    void refine(const Settings &settings, size_t index, Float scale = 1) {
+        if (m_nodes[index].isLeaf()) {
+            Float criterion = m_nodes[index].value.density / scale;
+            if (criterion >= settings.splitThreshold)
+                split(index);
+            else {
+                m_nodes[index].reset();
+                return;
+            }
+        }
+        
+        for (int child = 0; child < Arity; ++child)
+            refine(settings, m_nodes[index].children[child], scale * Arity);
+    }
+
+    template<typename ...Args>
     void splatFiltered(
+        const Settings &settings,
         int index,
         const Vector &originMin, const Vector &originMax,
         const Vector &nodeMin, Float nodeSize,
-        const Value &value, Float weight
+        Float density, const Aux &aux, Float weight,
+        Args&&... params
     ) {
         Vector nodeMax = nodeMin;
         for (int dim = 0; dim < Dimension; ++dim)
@@ -321,7 +307,11 @@ private:
         if (overlap > 0) {
             auto &node = m_nodes[index];
             if (node.isLeaf()) {
-                node.splat(value, weight * overlap, m_secondMoment);
+                node.value.splat(
+                    settings.child,
+                    density, aux, weight * overlap,
+                    std::forward<Args>(params)...
+                );
                 return;
             }
 
@@ -334,11 +324,12 @@ private:
                         childMin[dim] += childSize;
                 
                 splatFiltered(
+                    settings,
                     node.children[child],
                     originMin, originMax,
                     childMin, childSize,
-                    value,
-                    weight
+                    density, aux, weight,
+                    std::forward<Args>(params)...
                 );
             }
         }
@@ -346,12 +337,12 @@ private:
 
     /**
      * Executes the first pass of building the m_nodes.
-     * Parts of the tree that received no samples will be pruned (if requested via m_leafReweighting).
+     * Parts of the tree that received no samples will be pruned (if requested via settings.leafReweighting).
      * Each node in the tree will receive a value that is the mean over its childrens' values.
      * After this pass, the density of each node will correspond to the average weight within it,
      * i.e., after this pass you must still normalize the densities.
      */
-    void build(size_t index, std::vector<TreeNode> &newNodes, Float scale = 1) {
+    void build(const Settings &settings, size_t index, std::vector<TreeNode> &newNodes, Float scale = 1) {
         auto &node = m_nodes[index];
 
         // insert ourself into the tree
@@ -361,61 +352,59 @@ private:
         if (node.isLeaf()) {
             auto &newNode = newNodes[newIndex];
 
-            if (m_leafReweighting && node.weight < 1e-3) { // @todo why 1e-3?
+            if (settings.leafReweighting && node.value.weight < 1e-3) { // @todo why 1e-3?
                 // node received too few samples
-                newNode.weight = -1;
+                newNode.value.weight = -1;
                 return;
             }
 
-            Float w = m_leafReweighting ? 1 / node.weight : scale;
-            assert(w >= 0);
+            if (!settings.leafReweighting)
+                newNode.value.weight = 1 / scale;
 
             newNode.markAsLeaf();
-            newNode.density = node.density * w;
-            newNode.value   = node.value   * w;
-            newNode.weight  = node.weight;
+            newNode.value.build(settings.child);
 
-            if (m_secondMoment)
-                newNode.density = std::sqrt(newNode.density);
-            
+            if (!settings.leafReweighting)
+                newNode.value.weight = node.value.weight;
+
             return;
         }
 
         int validCount = 0;
         Float density  = 0;
         Float weight   = 0;
-        Value value    = Value();
+        Aux   aux      = Aux();
 
         for (int child = 0; child < Arity; ++child) {
             auto newChildIndex = newNodes.size();
-            build(node.children[child], newNodes, scale * Arity);
+            build(settings, node.children[child], newNodes, scale * Arity);
             newNodes[newIndex].children[child] = newChildIndex;
 
-            auto &newChild = newNodes[newChildIndex];
+            auto &newChild = newNodes[newChildIndex].value;
             if (newChild.weight >= 0) {
                 density += newChild.density;
-                value   += newChild.value;
+                aux     += newChild.aux;
                 weight  += newChild.weight;
 
                 ++validCount;
             }
         }
 
-        if (!m_leafReweighting)
+        if (!settings.leafReweighting)
             // ignore that children are broken if we are using naive building
             validCount = 4;
         
         if (validCount == 0) {
             // none of the children were valid (received samples)
             // mark this node and its subtree as invalid
-            newNodes[newIndex].weight = -1;
+            newNodes[newIndex].value.weight = -1;
             return;
         }
         
         // density and value are both normalized according to node area
-        newNodes[newIndex].density = density / validCount;
-        newNodes[newIndex].value   = value   / validCount;
-        newNodes[newIndex].weight  = weight;
+        newNodes[newIndex].value.density = density / validCount;
+        newNodes[newIndex].value.aux     = aux     / validCount;
+        newNodes[newIndex].value.weight  = weight;
 
         if (validCount < Arity) {
             // at least one of the node's children is invalid (has not received enough samples)

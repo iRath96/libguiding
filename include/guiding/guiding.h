@@ -36,8 +36,8 @@ void read(std::istream &is, T &t) {
  * `Float guiding::target(const Spectrum &x) { return x.average(); }`
  */
 template<typename T>
-Float target(const T &x) {
-    return Float(x);
+Float target(const T &x, T &aux) {
+    return (aux = Float(x));
 }
 
 template<typename V>
@@ -97,6 +97,51 @@ Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const Vec
         overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), 0.0f);
     return overlap;
 }
+
+template<typename T>
+class Leaf {
+public:
+    struct Settings {
+        bool secondMoment = false;
+    };
+
+    typedef T Aux;
+
+    atomic<Aux> aux;
+    atomic<Float> weight;
+    atomic<Float> density;
+
+    void splat(const Settings &settings, Float density, const Aux &aux, Float weight) {
+        if (settings.secondMoment)
+            density *= density;
+        
+        this->aux     += aux     * weight;
+        this->density += density * weight;
+        this->weight  += weight;
+    }
+
+    void build(const Settings &settings) {
+        density = density / weight;
+        aux     = aux     / weight;
+
+        if (settings.secondMoment)
+            density = std::sqrt(density);
+    }
+
+    Float pdf(const Settings &settings) const {
+        return density;
+    }
+
+    Leaf<T> sample(const Settings &settings) const {
+        return *this;
+    }
+
+    const atomic<Aux> &estimate() const {
+        return aux;
+    }
+};
+
+// Wrapper<Sample, KDTree<3, BTree<2, Leaf<Spectrum>>>>
 
 }
 
