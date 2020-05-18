@@ -63,8 +63,8 @@ public:
         guiding.settings = {
             .uniformProb = uniformProb,
             .child = {
-                .leafReweighting = reweighting,
                 .splitThreshold  = threshold / (reweighting ? 2 : 1),
+                .leafReweighting = reweighting,
                 .doFiltering     = doFiltering,
                 .child = {
                     .secondMoment = secondMoment

@@ -61,12 +61,12 @@ public:
         guiding.settings = {
             .uniformProb = 0.1f,
             .child = { // kd-tree
-                .doFiltering     = doFiltering,
                 .splitThreshold  = 0.05f,
+                .doFiltering     = doFiltering,
                 .child = { // b-tree
+                    .splitThreshold  = 0.01f,
                     .leafReweighting = true,
                     .doFiltering     = doFiltering,
-                    .splitThreshold  = 0.01f,
                     .child = { // leaf nodes
                         .secondMoment = false
                     }

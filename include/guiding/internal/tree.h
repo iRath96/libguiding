@@ -114,7 +114,6 @@ public:
         );
     }
 
-    template<>
     const Child &sample(const Settings &settings, Float &pdf, Vector &x) const {
         pdf = 1;
 
@@ -203,7 +202,7 @@ public:
         Float norm = m_nodes[0].value.density;
 
         for (auto &node : m_nodes) {
-            assert(!isnan(node.value.density));
+            assert(!std::isnan(node.value.density));
             node.value.density = node.value.density / norm;
             if (!settings.leafReweighting)
                 node.value.aux = node.value.aux / m_nodes[0].value.weight;

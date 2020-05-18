@@ -21,10 +21,3 @@ foreach(DEMO IN ITEMS demo-2d demo-5d)
     PRIVATE ${IMGUI_LIBRARIES}
   )
 endforeach(DEMO)
-
-add_executable(test test.cpp)
-set_target_properties(test PROPERTIES CXX_STANDARD 17)
-target_link_libraries(test PUBLIC glfw ${OPENGL_LIBRARIES} "-framework CoreFoundation")
-target_include_directories(test
-  PRIVATE ${OPENGL_INCLUDE_DIR}
-)

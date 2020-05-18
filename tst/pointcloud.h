@@ -1,5 +1,5 @@
 #include <iostream>
-#include <OpenGL/gl3.h>
+#include <gl.h>
 #include <map>
 
 static GLuint createShader_helper(GLint type, std::string shader_string) {
