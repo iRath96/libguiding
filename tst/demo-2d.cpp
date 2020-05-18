@@ -86,7 +86,7 @@ void initialize() {
 }
 
 void render() {
-    static bool showDemoWindow = true;
+    static bool showDemoWindow = false;
     if (showDemoWindow)
         ImGui::ShowDemoWindow(&showDemoWindow);
     

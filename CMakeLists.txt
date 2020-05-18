@@ -4,32 +4,8 @@ PROJECT ( libguiding )
 INCLUDE ( CheckCXXSourceCompiles )
 INCLUDE ( CheckCXXSourceRuns )
 
-#
-# Source folders
-#
-
-SET ( LIBGUIDING_CXX11_FEATURES
-  cxx_auto_type
-  cxx_explicit_conversions
-  cxx_lambdas
-  cxx_nullptr
-  cxx_range_for
-  cxx_static_assert
-)
-
-#
-# external dependencies
-#
-
-FIND_PACKAGE ( Eigen3 3.3 REQUIRED NO_MODULE )
-
-#
-# Main executables
-#
-
 FILE ( GLOB LIBGUIDING_SOURCE
   include/guiding/*
-
   src/*
 )
 
@@ -43,9 +19,8 @@ TARGET_INCLUDE_DIRECTORIES ( libguiding
   PRIVATE ${FFTW_INCLUDES}
 )
 
-SET_TARGET_PROPERTIES ( libguiding PROPERTIES CXX_STANDARD 17 OUTPUT_NAME guiding )
-TARGET_COMPILE_FEATURES ( libguiding PRIVATE ${LIBGUIDING_CXX11_FEATURES} )
-TARGET_LINK_LIBRARIES ( libguiding PRIVATE Eigen3::Eigen )
+# if you want to use wrapper.h, make sure you use C++17
+# SET_TARGET_PROPERTIES ( libguiding PROPERTIES CXX_STANDARD 17 OUTPUT_NAME guiding )
 
 INSTALL ( TARGETS libguiding
   DESTINATION lib
