@@ -5,9 +5,6 @@
 #include <functional>
 #include <cmath>
 
-#include <guiding/wrapper.h>
-#include <guiding/structures/btree.h>
-
 ImVec4 clear_color = ImVec4(0.16, 0.16, 0.18, 1.0);
 
 class GuidingDemo {
@@ -21,8 +18,9 @@ public:
     float threshold = 0.003f;
 
     bool badMode      = false;
-    bool doFiltering  = true;
     bool secondMoment = false;
+
+    TreeFilter::Enum filtering = TreeFilter::ENearest;
 
     GuidingDemo() {
         reset();
@@ -65,7 +63,7 @@ public:
             .child = {
                 .splitThreshold  = threshold / (reweighting ? 2 : 1),
                 .leafReweighting = reweighting,
-                .doFiltering     = doFiltering,
+                .filtering       = filtering,
                 .child = {
                     .secondMoment = secondMoment
                 }
@@ -108,11 +106,11 @@ void render() {
 
         if (
             ImGui::Checkbox("Müller",     &demo.badMode     ) |
-            ImGui::Checkbox("Box Filter", &demo.doFiltering ) |
+            selectTreeFilter(demo.filtering) |
             ImGui::Checkbox("2nd moment", &demo.secondMoment)
         )
             demo.reset();
-
+        
         ImGui::End();
     }
 }

@@ -10,6 +10,10 @@ using VectorXf = std::array<Float, D>;
 
 }
 
+#include <guiding/wrapper.h>
+#include <guiding/structures/btree.h>
+#include <guiding/structures/kdtree.h>
+
 using namespace guiding;
 
 ImVec4 falseColor(float v) {
@@ -93,9 +97,31 @@ public:
     RandomSampler() {}
 
     Float get1D() {
-        return std::generate_canonical<Float,std::numeric_limits<Float>::digits>(generator);
+        return std::generate_canonical<Float, std::numeric_limits<Float>::digits>(generator);
     }
 
 private:
     std::default_random_engine generator;
 };
+
+bool selectTreeFilter(TreeFilter::Enum &filtering) {
+    bool changed = false;
+    if (ImGui::BeginCombo("##filtering", TreeFilter::to_string(filtering))) {
+        for (int i = 0; i < TreeFilter::Max; ++i) {
+            auto v = TreeFilter::Enum(i);
+            bool isSelected = filtering == v;
+            
+            if (ImGui::Selectable(TreeFilter::to_string(v), isSelected)) {
+                filtering = v;
+                changed = true;
+            }
+
+            if (isSelected)
+                ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return changed;
+}

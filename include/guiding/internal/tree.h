@@ -11,6 +11,25 @@
 
 namespace guiding {
 
+struct TreeFilter {
+    enum Enum : uint8_t { // [Müller et al.]
+        ENearest    = 0,
+        EStochastic = 1,
+        EBox        = 2,
+
+        Max         = 3
+    };
+
+    static const char *to_string(TreeFilter::Enum value) {
+        switch (value) {
+        case ENearest: return "nearest";
+        case EStochastic: return "stochastic";
+        case EBox: return "box filter";
+        default: return "(invalid)";
+        }
+    }
+};
+
 template<typename Base, typename C>
 class Tree : public Base {
 public:
@@ -25,7 +44,7 @@ public:
         int maxDepth         = 16;
         Float splitThreshold = 0.002f;
         bool leafReweighting = true;
-        bool doFiltering     = true; // box filter [Müller et al.]
+        TreeFilter::Enum filtering = TreeFilter::ENearest;
 
         typename Child::Settings child;
     };
@@ -145,7 +164,7 @@ public:
 
     template<typename ...Args>
     void splat(const Settings &settings, Float density, const Aux &aux, Float weight, const Vector &x, Args&&... params) {
-        if (!settings.doFiltering) {
+        if (settings.filtering == TreeFilter::ENearest) {
             m_nodes[indexAt(x)].value.splat(
                 settings.child,
                 density, aux, weight,
@@ -168,6 +187,22 @@ public:
             originMax[dim] = x[dim] + size/2;
             zero[dim] = 0;
             one[dim] = 1;
+        }
+
+        if (settings.filtering == TreeFilter::EStochastic) {
+            Vector y;
+            for (int dim = 0; dim < Dimension; ++dim) {
+                Float alpha = random();
+                y[dim] = alpha * originMin[dim] + (1-alpha) * originMax[dim];
+            }
+
+            m_nodes[indexAt(y)].value.splat(
+                settings.child,
+                density, aux, weight,
+                std::forward<Args>(params)...
+            );
+
+            return;
         }
         
         splatFiltered(

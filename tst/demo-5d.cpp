@@ -3,10 +3,6 @@
 #include "utils.h"
 #include "pointcloud.h"
 
-#include <guiding/wrapper.h>
-#include <guiding/structures/btree.h>
-#include <guiding/structures/kdtree.h>
-
 ImVec4 clear_color = ImVec4(0.16, 0.16, 0.18, 1.0);
 
 class GuidingDemo {
@@ -15,7 +11,7 @@ public:
 
     DebugTexture leafTex;
 
-    bool doFiltering = false;
+    TreeFilter::Enum filtering = TreeFilter::ENearest;
 
     Pointcloud cloud;
     GuidingTree guiding;
@@ -62,11 +58,11 @@ public:
             .uniformProb = 0.1f,
             .child = { // kd-tree
                 .splitThreshold  = 0.05f,
-                .doFiltering     = doFiltering,
+                .filtering       = filtering,
                 .child = { // b-tree
                     .splitThreshold  = 0.01f,
                     .leafReweighting = true,
-                    .doFiltering     = doFiltering,
+                    .filtering       = filtering,
                     .child = { // leaf nodes
                         .secondMoment = false
                     }
@@ -155,7 +151,7 @@ void render() {
         demo.updatePointCloud();
 
         if (
-            ImGui::Checkbox("Box Filter", &demo.doFiltering)
+            selectTreeFilter(demo.filtering)
         )
             demo.reset();
 

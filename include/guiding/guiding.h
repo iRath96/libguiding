@@ -185,6 +185,12 @@ struct RecurseChild<Child> {
     typedef Child Type;
 };
 
+Float random() {
+    // @todo some people might want to override this!
+    static std::default_random_engine generator;
+    return std::generate_canonical<Float, std::numeric_limits<Float>::digits>(generator);
+}
+
 }
 
 #endif
