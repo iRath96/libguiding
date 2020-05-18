@@ -30,6 +30,15 @@ struct TreeFilter {
     }
 };
 
+struct TreeSplitting {
+    enum Enum : uint8_t {
+        EDensity = 0,
+        EWeight  = 1,
+
+        Max      = 2
+    };
+};
+
 template<typename Base, typename C>
 class Tree : public Base {
 public:
@@ -44,6 +53,8 @@ public:
         int maxDepth         = 16;
         Float splitThreshold = 0.002f;
         bool leafReweighting = true;
+
+        TreeSplitting::Enum splitting = TreeSplitting::EDensity;
         TreeFilter::Enum filtering = TreeFilter::ENearest;
 
         typename Child::Settings child;
@@ -361,6 +372,8 @@ private:
     void refine(const Settings &settings, size_t index, int depth = 0, Float scale = 1) {
         if (m_nodes[index].isLeaf()) {
             Float criterion = m_nodes[index].value.density / scale;
+            if (settings.splitting == TreeSplitting::EWeight)
+                criterion = m_nodes[index].value.weight;
             if (criterion >= settings.splitThreshold && depth < settings.maxDepth)
                 split(index);
             else {
@@ -494,6 +507,8 @@ private:
         size_t childIndex = m_nodes.size();
         assert(childIndex > parentIndex);
         assert(m_nodes[parentIndex].isLeaf());
+
+        m_nodes[parentIndex].value.weight = m_nodes[parentIndex].value.weight / Arity;
 
         for (int child = 0; child < Arity; ++child) {
             // insert new children

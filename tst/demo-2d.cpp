@@ -19,6 +19,7 @@ public:
 
     bool badMode      = false;
     bool secondMoment = false;
+    bool hardReset    = true;
 
     TreeFilter::Enum filtering = TreeFilter::ENearest;
 
@@ -65,7 +66,8 @@ public:
                 .leafReweighting = reweighting,
                 .filtering       = filtering,
                 .child = {
-                    .secondMoment = secondMoment
+                    .secondMoment = secondMoment,
+                    .resetFactor  = hardReset ? 0.f : 0.2f
                 }
             }
         };
@@ -107,7 +109,8 @@ void render() {
         if (
             ImGui::Checkbox("Müller",     &demo.badMode     ) |
             selectTreeFilter(demo.filtering) |
-            ImGui::Checkbox("2nd moment", &demo.secondMoment)
+            ImGui::Checkbox("2nd moment", &demo.secondMoment) |
+            ImGui::Checkbox("Hard reset", &demo.hardReset)
         )
             demo.reset();
         

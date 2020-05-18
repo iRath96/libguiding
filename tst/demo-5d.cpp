@@ -57,7 +57,8 @@ public:
         guiding.settings = {
             .uniformProb = 0.1f,
             .child = { // kd-tree
-                .splitThreshold  = 0.05f,
+                .splitThreshold  = 1000.f,
+                .splitting       = TreeSplitting::EWeight,
                 .filtering       = filtering,
                 .child = { // b-tree
                     .splitThreshold  = 0.01f,

@@ -93,6 +93,7 @@ class Leaf {
 public:
     struct Settings {
         bool secondMoment = false;
+        Float resetFactor = 0.f;
     };
 
     typedef T Aux;
@@ -119,9 +120,9 @@ public:
     }
 
     void refine(const Settings &settings) {
-        aux     = Aux();
-        weight  = 0.f;
-        density = 0.f;
+        weight  = weight * settings.resetFactor;
+        aux     = aux * weight;
+        density = density * weight;
     }
 
     Float pdf(const Settings &settings) const {
