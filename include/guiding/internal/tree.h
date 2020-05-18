@@ -482,6 +482,8 @@ private:
             newParent.density += newChild.density;
             newParent.aux     += newChild.aux;
             newParent.weight  += newChild.weight;
+
+            ++validCount;
         }
 
         if (validCount == 0) {

@@ -1,7 +1,7 @@
 #ifndef HUSSAR_GUIDING_POINTWRAPPER_H
 #define HUSSAR_GUIDING_POINTWRAPPER_H
 
-#include "../guiding.h"
+#include "guiding.h"
 
 #include <array>
 #include <vector>
