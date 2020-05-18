@@ -14,7 +14,10 @@
 
 namespace guiding {
 
-// Wrapper<Sample>
+template<typename T>
+Float defaultTarget(const T &x, T &aux) {
+    return (aux = Float(x));
+}
 
 template<typename S, typename C>
 class Wrapper {
@@ -26,6 +29,10 @@ public:
 
     struct Settings {
         Float uniformProb = 0.5f;
+
+        // @todo could enhance performance by adding template for this
+        Float (*target)(const Sample &, Aux &) = defaultTarget<Sample>;
+
         typename Distribution::Settings child;
     };
 
@@ -110,7 +117,7 @@ public:
         
         {
             Aux aux;
-            Float density = guiding::target(sample, aux);
+            Float density = settings.target(sample, aux);
 
             std::shared_lock lock(m_mutex);
             m_training.splat(

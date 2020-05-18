@@ -30,16 +30,6 @@ void read(std::istream &is, T &t) {
     is.read((char *)&t, sizeof(T));
 }
 
-/**
- * Assign a target to a distribution value (the density will equal to this, but normalized).
- * For instance, if you want to store Spectrums in your guiding distribution, do this;
- * `Float guiding::target(const Spectrum &x) { return x.average(); }`
- */
-template<typename T>
-Float target(const T &x, T &aux) {
-    return (aux = Float(x));
-}
-
 template<typename V>
 class atomic {
 public:
