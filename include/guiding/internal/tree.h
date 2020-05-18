@@ -91,13 +91,15 @@ private:
         }
 
         void write(std::ostream &os) const {
-            guiding::write(os, value);
             guiding::write(os, children);
+            guiding::write(os, value);
+            guiding::write(os, data);
         }
 
         void read(std::istream &is) {
-            guiding::read(is, value);
             guiding::read(is, children);
+            guiding::read(is, value);
+            guiding::read(is, data);
         }
     };
 
@@ -559,12 +561,6 @@ public:
             node.read(is);
     }
 };
-
-template<typename Base, typename C>
-void write(std::ostream &os, const Tree<Base, C> &t) { writeType(os, t); t.write(os); }
-
-template<typename Base, typename C>
-void read(std::istream &is, Tree<Base, C> &t) { readType(is, t); t.read(is); }
 
 }
 
