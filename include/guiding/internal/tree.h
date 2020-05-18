@@ -91,13 +91,13 @@ private:
         }
 
         void write(std::ostream &os) const {
-            write(os, value);
-            write(os, children);
+            guiding::write(os, value);
+            guiding::write(os, children);
         }
 
         void read(std::istream &is) {
-            read(is, value);
-            read(is, children);
+            guiding::read(is, value);
+            guiding::read(is, children);
         }
     };
 
@@ -237,7 +237,7 @@ public:
         newNodes.reserve(m_nodes.size());
         
         bool isValid = build(settings, 0, newNodes);
-        if (newNodes[0].value.weight == 0 || !isValid) {
+        if (newNodes[0].value.weight == 0 || newNodes[0].value.density == 0 || !isValid) {
             // you're building a tree without samples. good luck with that.
             setUniform();
             return;
@@ -246,6 +246,8 @@ public:
         // normalize density
         m_nodes = newNodes;
         Float norm = m_nodes[0].value.density;
+        assert(!std::isnan(norm));
+        assert(norm > 0);
 
         for (auto &node : m_nodes) {
             assert(!std::isnan(node.value.density));
@@ -476,9 +478,12 @@ private:
 
             if (!isValid && settings.leafReweighting)
                 continue;
-
+            
             auto &newParent = newNodes[newIndex].value;
             auto &newChild = newNodes[newChildIndex].value;
+
+            assert(!std::isnan(newChild.density));
+
             newParent.density += newChild.density;
             newParent.aux     += newChild.aux;
             newParent.weight  += newChild.weight;
@@ -531,21 +536,35 @@ private:
 
 public:
     void write(std::ostream &os) const {
+        guiding::write(os, density);
+        guiding::write(os, aux);
+        guiding::write(os, weight);
+
         size_t childCount = m_nodes.size();
-        write(os, childCount);
+        guiding::write(os, childCount);
         for (auto &node : m_nodes)
             node.write(os);
     }
 
     void read(std::istream &is) {
+        guiding::read(is, density);
+        guiding::read(is, aux);
+        guiding::read(is, weight);
+
         size_t childCount = m_nodes.size();
-        read(is, childCount);
+        guiding::read(is, childCount);
         m_nodes.resize(childCount);
 
         for (auto &node : m_nodes)
             node.read(is);
     }
 };
+
+template<typename Base, typename C>
+void write(std::ostream &os, const Tree<Base, C> &t) { writeType(os, t); t.write(os); }
+
+template<typename Base, typename C>
+void read(std::istream &is, Tree<Base, C> &t) { readType(is, t); t.read(is); }
 
 }
 

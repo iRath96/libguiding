@@ -11,6 +11,30 @@
 
 namespace guiding {
 
+template<typename T>
+void writeType(std::ostream &os, const T &t) {
+    auto name = typeid(T).name();
+    size_t len = strlen(name) + 1;
+
+    os.write((const char *)&len, sizeof(len));
+    os.write(name, len);
+}
+
+template<typename T>
+void readType(std::istream &is, T &t) {
+    size_t len;
+    is.read((char *)&len, sizeof(len));
+
+    char name[len];
+    is.read((char *)&len, len);
+
+    const char *expected = typeid(T).name();
+    if (strcmp(name, expected)) {
+        std::cerr << "expected to read " << expected << ", but found " << name << std::endl;
+        assert(false);
+    }
+}
+
 /**
  * Writes an element to disk.
  * Override this if you store complex objects in your distribution that
@@ -18,6 +42,7 @@ namespace guiding {
  */
 template<typename T>
 void write(std::ostream &os, const T &t) {
+    writeType(os, t);
     os.write((const char *)&t, sizeof(T));
 }
 
@@ -28,6 +53,7 @@ void write(std::ostream &os, const T &t) {
  */
 template<typename T>
 void read(std::istream &is, T &t) {
+    readType(is, t);
     is.read((char *)&t, sizeof(T));
 }
 
@@ -146,6 +172,12 @@ public:
         std::cout << prefix << "Leaf (density=" << density << ", weight=" << weight << ")" << std::endl;
     }
 };
+
+template<typename T>
+void write(std::ostream &os, const Leaf<T> &t) { writeType(os, t); t.write(os); }
+
+template<typename T>
+void read(std::istream &is, Leaf<T> &t) { readType(is, t); t.read(is); }
 
 template<typename ...Args>
 struct is_empty {
