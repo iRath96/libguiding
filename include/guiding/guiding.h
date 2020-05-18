@@ -7,6 +7,7 @@
 #include <array>
 #include <cassert>
 #include <mutex>
+#include <random>
 
 namespace guiding {
 

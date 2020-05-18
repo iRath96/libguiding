@@ -1,7 +1,7 @@
 #ifndef HUSSAR_GUIDING_BTREE_H
 #define HUSSAR_GUIDING_BTREE_H
 
-#include <guiding/internal/tree.h>
+#include "../internal/tree.h"
 
 namespace guiding {
 

@@ -1,7 +1,7 @@
 #ifndef HUSSAR_GUIDING_TREE_H
 #define HUSSAR_GUIDING_TREE_H
 
-#include <guiding/guiding.h>
+#include "../guiding.h"
 
 #include <array>
 #include <vector>
@@ -236,8 +236,8 @@ public:
         std::vector<TreeNode> newNodes;
         newNodes.reserve(m_nodes.size());
         
-        build(settings, 0, newNodes);
-        if (newNodes[0].value.weight <= 0 || newNodes[0].value.density == 0) {
+        bool isValid = build(settings, 0, newNodes);
+        if (newNodes[0].value.weight == 0 || !isValid) {
             // you're building a tree without samples. good luck with that.
             setUniform();
             return;
@@ -432,7 +432,7 @@ private:
      * After this pass, the density of each node will correspond to the average weight within it,
      * i.e., after this pass you must still normalize the densities.
      */
-    void build(const Settings &settings, size_t index, std::vector<TreeNode> &newNodes, Float scale = 1) {
+    bool build(const Settings &settings, size_t index, std::vector<TreeNode> &newNodes, Float scale = 1) {
         auto &node = m_nodes[index];
 
         // insert ourself into the tree
@@ -453,54 +453,57 @@ private:
 
             if (settings.leafReweighting && newNode.value.weight < 1e-3) { // @todo why 1e-3?
                 // node received too few samples
-                newNode.value.weight = -1;
-                return;
+                return false;
             }
      
-            return;
+            return true;
         }
 
         int validCount = 0;
-        Float density  = 0;
-        Float weight   = 0;
-        Aux   aux      = Aux();
+
+        {
+            // reset parent so we can accumulate children in it
+            auto &node = newNodes[newIndex].value;
+            node.density = 0;
+            node.weight  = 0;
+            node.aux     = Aux();
+        }
 
         for (int child = 0; child < Arity; ++child) {
             auto newChildIndex = newNodes.size();
-            build(settings, node.children[child], newNodes, scale * Arity);
+            bool isValid = build(settings, node.children[child], newNodes, scale * Arity);
             newNodes[newIndex].children[child] = newChildIndex;
 
-            auto &newChild = newNodes[newChildIndex].value;
-            if (newChild.weight >= 0) {
-                density += newChild.density;
-                aux     += newChild.aux;
-                weight  += newChild.weight;
+            if (!isValid && settings.leafReweighting)
+                continue;
 
-                ++validCount;
-            }
+            auto &newParent = newNodes[newIndex].value;
+            auto &newChild = newNodes[newChildIndex].value;
+            newParent.density += newChild.density;
+            newParent.aux     += newChild.aux;
+            newParent.weight  += newChild.weight;
         }
 
-        if (!settings.leafReweighting)
-            // ignore that children are broken if we are using naive building
-            validCount = 4;
-        
         if (validCount == 0) {
             // none of the children were valid (received samples)
             // mark this node and its subtree as invalid
-            newNodes[newIndex].value.weight = -1;
-            return;
+            return false;
         }
-        
-        // density and value are both normalized according to node area
-        newNodes[newIndex].value.density = density / validCount;
-        newNodes[newIndex].value.aux     = aux     / validCount;
-        newNodes[newIndex].value.weight  = weight;
+
+        {
+            // density and value are both normalized according to node area
+            auto &node = newNodes[newIndex].value;
+            node.density = node.density / validCount;
+            node.aux     = node.aux     / validCount;
+        }
 
         if (validCount < Arity) {
             // at least one of the node's children is invalid (has not received enough samples)
             newNodes.resize(newIndex + 1); // remove the subtree of this node...
             newNodes[newIndex].markAsLeaf(); // ...and replace it by a leaf node
         }
+
+        return true;
     }
 
     void split(size_t parentIndex) {
