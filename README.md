@@ -50,7 +50,8 @@ auto guiding = Muller({ // wrapper settings
 
   .child = { // KD-Tree settings
     .maxDepth       = 12,
-    .splitThreshold = 0.01f,
+    .splitThreshold = 1000.f,
+    .splitting      = TreeSplitting::EWeight,
     .filtering      = TreeFilter::EStochastic,
 
     .child = { // B-Tree settings
