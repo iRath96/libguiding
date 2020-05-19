@@ -52,7 +52,7 @@ struct has_custom_io {
 template<typename T>
 void write(std::ostream &os, const T &t) {
     if constexpr(has_custom_io<T>::value) {
-        writeType(os, t);
+        //writeType(os, t);
         t.write(os);
     } else {
         os.write((const char *)&t, sizeof(T));
@@ -67,7 +67,7 @@ void write(std::ostream &os, const T &t) {
 template<typename T>
 void read(std::istream &is, T &t) {
     if constexpr(has_custom_io<T>::value) {
-        readType(is, t);
+        //readType(is, t);
         t.read(is);
     } else {
         is.read((char *)&t, sizeof(T));

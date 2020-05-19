@@ -14,7 +14,7 @@ struct BTreeBase {
 
     typedef VectorXf<Dimension> Vector;
 
-    void afterSplit(ChildData &) {}
+    void afterSplit(ChildData &) const {}
 
     void boxForChild(int childIndex, Vector &min, Vector &max, const ChildData &) const {
         for (int dim = 0; dim < Dimension; ++dim) {

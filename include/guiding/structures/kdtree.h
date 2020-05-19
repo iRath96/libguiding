@@ -16,7 +16,7 @@ struct KDTreeBase {
 
     typedef VectorXf<Dimension> Vector;
 
-    void afterSplit(ChildData &data) {
+    void afterSplit(ChildData &data) const {
         data.axis = (data.axis + 1) % Dimension;
     }
 

@@ -37,11 +37,19 @@ public:
     }
 
     void build(const Settings &settings) {
-        if (weight < 1e-6)
+        if (weight < 1e-10)
             return;
         
         density = density / weight;
         aux     = aux     / weight;
+
+        if (settings.secondMoment)
+            density = std::sqrt(density);
+    }
+
+    void build(const Settings &settings, Float scale) {
+        density = density * scale;
+        aux     = aux * scale;
 
         if (settings.secondMoment)
             density = std::sqrt(density);
@@ -121,6 +129,8 @@ public:
     static constexpr auto Arity = Base::Arity;
     static constexpr auto IsLeaf = false;
 
+    typedef uint16_t Index;
+
     typedef C Child;
     typedef typename Child::Aux Aux;
     typedef typename Base::Vector Vector;
@@ -145,7 +155,7 @@ private:
          * [0.5, 1.0).
          * The MSB corresponds to the last dimension of the vector.
          */
-        std::array<int, Arity> children;
+        std::array<Index, Arity> children;
         Child value; // the accumulation of the estimator (i.e., sum of integrand*weight)
         typename Base::ChildData data;
         
@@ -159,7 +169,7 @@ private:
 
         int depth(const std::vector<TreeNode> &nodes) const {
             if (isLeaf())
-                return 1;
+                return 0;
 
             int maxDepth = 0;
             for (int i = 0; i < Arity; ++i)
@@ -232,7 +242,7 @@ public:
             scale[dim] = 1;
         }
 
-        int index = 0;
+        Index index = 0;
         while (!m_nodes[index].isLeaf()) {
             auto newIndex = m_nodes[index].children[this->sampleChild(x, base, scale, index, m_nodes)];
             assert(newIndex > index);
@@ -345,8 +355,18 @@ public:
         updateRoot();
     }
 
+    void build(const Settings &settings, Float scale) {
+        std::cerr << "you can only disable leaf reweighting for trees that contain leaves" << std::endl;
+        assert(false);
+    }
+
     void refine(const Settings &settings) {
-        refine(settings, 0);
+        // @todo could use move constructor for performance and refine directly into other tree
+        std::vector<TreeNode> newNodes;
+        newNodes.reserve(m_nodes.size());
+        refine(settings, m_nodes[0], newNodes);
+
+        m_nodes = newNodes;
     }
 
     // methods that provide statistics
@@ -355,11 +375,18 @@ public:
         return m_nodes[0].depth(m_nodes);
     }
 
+    int depthAt(const Vector &x) const {
+        int depth;
+        Vector min, max;
+        indexAt(x, depth, min, max);
+        return depth;
+    }
+
     size_t nodeCount() const {
         return m_nodes.size();
     }
 
-    size_t totalNodeCount() const {
+    size_t totalNodeCount() const { // @todo should be called totalLeafCount()
         size_t count = 0;
         for (auto &node : m_nodes)
             if (node.isLeaf())
@@ -398,7 +425,7 @@ public:
 private:
     void enumerate(
         std::function<void (const Child &, const Vector &, const Vector &)> callback,
-        int index,
+        Index index,
         const Vector &min, const Vector &max
     ) const {
         auto &node = m_nodes[index];
@@ -408,7 +435,7 @@ private:
         }
         
         for (int childIndex = 0; childIndex < Arity; ++childIndex) {
-            int ci = node.children[childIndex];
+            Index ci = node.children[childIndex];
 
             Vector childMin = min;
             Vector childMax = max;
@@ -447,7 +474,7 @@ private:
             max[dim] = 1;
         }
 
-        int index = 0;
+        Index index = 0;
         depth = 0;
         while (!m_nodes[index].isLeaf()) {
             int childIndex = this->childIndex(x, m_nodes[index].data);
@@ -463,28 +490,66 @@ private:
         return index;
     }
 
-    void refine(const Settings &settings, size_t index, int depth = 0, Float scale = 1) {
-        if (m_nodes[index].isLeaf()) {
-            Float criterion = m_nodes[index].value.density / scale;
-            if (settings.splitting == TreeSplitting::EWeight)
-                criterion = m_nodes[index].value.weight;
-            if (criterion >= settings.splitThreshold && depth < settings.maxDepth)
-                split(index);
-            else {
-                // this node will not be refined further
-                m_nodes[index].value.refine(settings.child);
-                return;
+    size_t refine(
+        const Settings &settings,
+        const TreeNode &node, std::vector<TreeNode> &newNodes,
+        int depth = 0, Float scale = 1
+    ) const {
+        assert(newNodes.size() <= std::numeric_limits<Index>::max());
+
+        Index newIndex = newNodes.size();
+        newNodes.push_back(node);
+
+        bool canSplit = newNodes.size() < (std::numeric_limits<Index>::max() + Arity);
+
+        Float criterion = node.value.density / scale;
+        if (settings.splitting == TreeSplitting::EWeight)
+            criterion = node.value.weight;
+        if (criterion >= settings.splitThreshold && depth < settings.maxDepth && canSplit) {
+            if (node.isLeaf()) {
+                // split this node and refine new children recursively
+                // note: once we are in this code region, all recursive calls end
+                // up in this region or the "criterion not met" region.
+
+                TreeNode childTemplate = node;
+                childTemplate.value.weight = childTemplate.value.weight / Arity;
+                this->afterSplit(childTemplate.data);
+
+                for (int i = 0; i < Arity; ++i) {
+                    auto newChildIndex = refine(
+                        settings,
+                        childTemplate, newNodes,
+                        depth + 1, scale * Arity
+                    );
+                    newNodes[newIndex].children[i] = newChildIndex;
+                }
+
+                // get rid of wasted space
+                newNodes[newIndex].value = Child();
+            } else {
+                // carry over existing children
+                for (int i = 0; i < Arity; ++i) {
+                    auto newChildIndex = refine(
+                        settings,
+                        m_nodes[node.children[i]], newNodes,
+                        depth + 1, scale * Arity
+                    );
+                    newNodes[newIndex].children[i] = newChildIndex;
+                }
             }
+        } else {
+            // merge (@todo merge distributions?)
+            newNodes[newIndex].markAsLeaf();
+            newNodes[newIndex].value.refine(settings.child);
         }
-        
-        for (int child = 0; child < Arity; ++child)
-            refine(settings, m_nodes[index].children[child], depth + 1, scale * Arity);
+
+        return newIndex;
     }
 
     template<typename ...Args>
     void splatFiltered(
         const Settings &settings,
-        int index,
+        Index index,
         const Vector &originMin, const Vector &originMax,
         const Vector &nodeMin, const Vector &nodeMax,
         Float density, const Aux &aux, Float weight,
@@ -530,20 +595,16 @@ private:
         auto &node = m_nodes[index];
 
         // insert ourself into the tree
-        size_t newIndex = newNodes.size();
+        Index newIndex = newNodes.size();
         newNodes.push_back(node);
 
         if (node.isLeaf()) {
             auto &newNode = newNodes[newIndex];
 
             if (!settings.leafReweighting)
-                // @todo this only works for Leaf<…>!
-                newNode.value.weight = 1 / scale;
-
-            newNode.value.build(settings.child);
-
-            if (!settings.leafReweighting)
-                newNode.value.weight = node.value.weight;
+                newNode.value.build(settings.child, scale);
+            else
+                newNode.value.build(settings.child);
 
             if (settings.leafReweighting && newNode.value.weight < 1e-3) { // @todo why 1e-3?
                 // node received too few samples
@@ -605,27 +666,6 @@ private:
         }
 
         return true;
-    }
-
-    void split(size_t parentIndex) {
-        size_t childIndex = m_nodes.size();
-        assert(childIndex > parentIndex);
-        assert(m_nodes[parentIndex].isLeaf());
-
-        m_nodes[parentIndex].value.weight = m_nodes[parentIndex].value.weight / Arity;
-
-        for (int child = 0; child < Arity; ++child) {
-            // insert new children
-            m_nodes.push_back(m_nodes[parentIndex]);
-            this->afterSplit(m_nodes[childIndex + child].data);
-        }
-
-        // get rid of wasted space
-        m_nodes[parentIndex].value = Child();
-
-        for (int child = 0; child < Arity; ++child)
-            // register new children
-            m_nodes[parentIndex].children[child] = childIndex + child;
     }
 
 public:
