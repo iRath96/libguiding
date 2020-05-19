@@ -56,7 +56,7 @@ struct BTreeBase {
             p[0] /= p[0] + p[1];
             assert(p[0] >= 0 && p[1] >= 0);
 
-            int slab = x[dim] > p[0];
+            int slab = x[dim] >= p[0];
             childIndex |= slab << dim;
 
             if (slab) {

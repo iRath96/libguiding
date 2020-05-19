@@ -49,7 +49,7 @@ struct KDTreeBase {
         assert(p[0] >= 0 && p[1] >= 0);
 
         int dim = nodes[index].data.axis;
-        int slab = x[dim] > p[0];
+        int slab = x[dim] >= p[0];
         childIndex = slab;
 
         if (slab) {

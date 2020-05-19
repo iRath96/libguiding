@@ -236,11 +236,11 @@ public:
         while (!m_nodes[index].isLeaf()) {
             auto newIndex = m_nodes[index].children[this->sampleChild(x, base, scale, index, m_nodes)];
             assert(newIndex > index);
+            assert(m_nodes[newIndex].value.density > 0);
             index = newIndex;
         }
 
         pdf *= m_nodes[index].value.density;
-        assert(m_nodes[index].value.density > 0);
         
         for (int dim = 0; dim < Dimension; ++dim) {
             x[dim] *= scale[dim];
