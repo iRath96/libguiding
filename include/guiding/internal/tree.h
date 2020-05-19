@@ -136,7 +136,9 @@ public:
     typedef typename Base::Vector Vector;
 
     struct Settings {
-        int maxDepth         = 16;
+        int minDepth = 0;
+        int maxDepth = 16;
+
         Float splitThreshold = 0.002f;
         bool leafReweighting = true;
         bool mergePartiallyInvalid = false;//Child::IsLeaf;
@@ -505,7 +507,12 @@ private:
         Float criterion = node.value.density / scale;
         if (settings.splitting == TreeSplitting::EWeight)
             criterion = node.value.weight;
-        if (criterion >= settings.splitThreshold && depth < settings.maxDepth && canSplit) {
+        if (
+            canSplit && (
+                (criterion >= settings.splitThreshold && depth < settings.maxDepth) ||
+                depth < settings.minDepth
+            )
+        ) {
             if (node.isLeaf()) {
                 // split this node and refine new children recursively
                 // note: once we are in this code region, all recursive calls end

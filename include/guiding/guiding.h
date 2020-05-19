@@ -77,6 +77,12 @@ void read(std::istream &is, T &t) {
 template<typename V>
 class atomic {
 public:
+    atomic() {}
+    atomic(const V &v) : m_value(v) {}
+    atomic(const atomic<V> &other) {
+        m_value = other.m_value;
+    }
+
     void operator+=(const V &v) {
         std::unique_lock lock(m_mutex);
         m_value += v;
@@ -89,6 +95,15 @@ public:
     void operator=(const atomic<V> &other) {
         m_value = other.m_value;
     }
+
+    void operator+=(const atomic<V> &other) {
+        m_value += other.m_value;
+    }
+
+    operator V() const { return m_value; }
+
+    V operator/(Float other) { return m_value / other; }
+    V operator*(Float other) { return m_value * other; }
 
     const V &value() const { return m_value; }
 
