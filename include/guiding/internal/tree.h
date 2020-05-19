@@ -11,6 +11,81 @@
 
 namespace guiding {
 
+template<typename T>
+class Leaf {
+public:
+    static constexpr auto IsLeaf = true;
+
+    struct Settings {
+        bool secondMoment = false;
+        Float resetFactor = 0.f;
+    };
+
+    typedef T Aux;
+
+    atomic<Aux> aux;
+    atomic<Float> weight;
+    atomic<Float> density;
+
+    void splat(const Settings &settings, Float density, const Aux &aux, Float weight) {
+        if (settings.secondMoment)
+            density *= density;
+        
+        this->aux     += aux     * weight;
+        this->density += density * weight;
+        this->weight  += weight;
+    }
+
+    void build(const Settings &settings) {
+        if (weight < 1e-6)
+            return;
+        
+        density = density / weight;
+        aux     = aux     / weight;
+
+        if (settings.secondMoment)
+            density = std::sqrt(density);
+    }
+
+    void refine(const Settings &settings) {
+        weight  = weight * settings.resetFactor;
+        aux     = aux * weight;
+        density = density * weight;
+    }
+
+    Float pdf(const Settings &settings) const {
+        return density;
+    }
+
+    Leaf<T> sample(const Settings &settings) const {
+        return *this;
+    }
+
+    const atomic<Aux> &estimate() const {
+        return aux;
+    }
+
+    size_t totalNodeCount() const {
+        return 1;
+    }
+
+    void dump(const std::string &prefix) const {
+        std::cout << prefix << "Leaf (density=" << density << ", weight=" << weight << ")" << std::endl;
+    }
+
+    void write(std::ostream &os) const {
+        guiding::write(os, aux);
+        guiding::write(os, weight);
+        guiding::write(os, density);
+    }
+
+    void read(std::istream &is) {
+        guiding::read(is, aux);
+        guiding::read(is, weight);
+        guiding::read(is, density);
+    }
+};
+
 struct TreeFilter {
     enum Enum : uint8_t { // [Müller et al.]
         ENearest    = 0,
@@ -44,6 +119,7 @@ class Tree : public Base {
 public:
     static constexpr auto Dimension = Base::Dimension;
     static constexpr auto Arity = Base::Arity;
+    static constexpr auto IsLeaf = false;
 
     typedef C Child;
     typedef typename Child::Aux Aux;
@@ -53,6 +129,7 @@ public:
         int maxDepth         = 16;
         Float splitThreshold = 0.002f;
         bool leafReweighting = true;
+        bool mergePartiallyInvalid = false;//Child::IsLeaf;
 
         TreeSplitting::Enum splitting = TreeSplitting::EDensity;
         TreeFilter::Enum filtering = TreeFilter::ENearest;
@@ -241,9 +318,15 @@ public:
         bool isValid = build(settings, 0, newNodes);
         if (newNodes[0].value.weight == 0 || newNodes[0].value.density == 0 || !isValid) {
             // you're building a tree without samples. good luck with that.
-            setUniform();
+            //std::cout << "invalid tree: " << newNodes[0].value.weight
+            //    << "/ " << newNodes[0].value.density
+            //    << "/" << (isValid ? "valid" : "invalid")
+            //    << std::endl;
+            setUniform(newNodes[0].value.weight);
             return;
         }
+
+        //std::cout << "valid tree: " << newNodes[0].value.weight << std::endl;
         
         // normalize density
         m_nodes = newNodes;
@@ -258,6 +341,7 @@ public:
                 node.value.aux = node.value.aux / m_nodes[0].value.weight;
         }
 
+        density = norm;
         updateRoot();
     }
 
@@ -289,9 +373,14 @@ public:
 
     void dump(const std::string &prefix) const {
         std::cout << prefix << "Tree (density=" << density << ", weight=" << weight << ")" << std::endl;
+        int counter = 16;
         for (auto &node : m_nodes)
             if (node.isLeaf())
-                node.value.dump(prefix + "  ");
+                if (counter-- > 0)
+                    node.value.dump(prefix + "  ");
+        
+        if (counter < 0)
+            std::cout << prefix << "  ... +" << (-counter) << " more leaves" << std::endl;
     }
 
     void enumerate(
@@ -320,27 +409,28 @@ private:
         
         for (int childIndex = 0; childIndex < Arity; ++childIndex) {
             int ci = node.children[childIndex];
+
             Vector childMin = min;
             Vector childMax = max;
-            this->boxForChild(childIndex, childMin, childMax, m_nodes[ci].data);
+            this->boxForChild(childIndex, childMin, childMax, node.data);
 
             enumerate(callback, ci, childMin, childMax);
         }
     }
 
     void updateRoot() {
-        density = m_nodes[0].value.density;
         aux     = m_nodes[0].value.aux;
         weight  = m_nodes[0].value.weight;
     }
 
-    void setUniform() {
+    void setUniform(Float weight = 0) {
         m_nodes.resize(1);
         m_nodes[0].markAsLeaf();
         m_nodes[0].value.density = 1;
         m_nodes[0].value.aux     = Aux();
-        m_nodes[0].value.weight  = 0;
+        m_nodes[0].value.weight  = weight;
 
+        density = 0;
         updateRoot();
     }
 
@@ -506,10 +596,12 @@ private:
             node.aux     = node.aux     / validCount;
         }
 
-        if (validCount < Arity) {
+        if (validCount < Arity && settings.mergePartiallyInvalid) {
             // at least one of the node's children is invalid (has not received enough samples)
             newNodes.resize(newIndex + 1); // remove the subtree of this node...
             newNodes[newIndex].markAsLeaf(); // ...and replace it by a leaf node
+
+            // @todo this will break if our children are distributions!
         }
 
         return true;

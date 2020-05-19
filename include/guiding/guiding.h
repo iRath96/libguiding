@@ -14,7 +14,7 @@ namespace guiding {
 template<typename T>
 void writeType(std::ostream &os, const T &t) {
     auto name = typeid(T).name();
-    size_t len = strlen(name) + 1;
+    uint16_t len = strlen(name);
 
     os.write((const char *)&len, sizeof(len));
     os.write(name, len);
@@ -22,11 +22,12 @@ void writeType(std::ostream &os, const T &t) {
 
 template<typename T>
 void readType(std::istream &is, T &t) {
-    size_t len;
+    uint16_t len;
     is.read((char *)&len, sizeof(len));
 
-    char name[len];
+    char name[len+1];
     is.read((char *)name, len);
+    name[len] = 0;
 
     const char *expected = typeid(T).name();
     if (strcmp(name, expected)) {
@@ -51,6 +52,7 @@ struct has_custom_io {
 template<typename T>
 void write(std::ostream &os, const T &t) {
     if constexpr(has_custom_io<T>::value) {
+        writeType(os, t);
         t.write(os);
     } else {
         os.write((const char *)&t, sizeof(T));
@@ -65,6 +67,7 @@ void write(std::ostream &os, const T &t) {
 template<typename T>
 void read(std::istream &is, T &t) {
     if constexpr(has_custom_io<T>::value) {
+        readType(is, t);
         t.read(is);
     } else {
         is.read((char *)&t, sizeof(T));
@@ -147,76 +150,6 @@ Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const Vec
         overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), 0.0f);
     return overlap;
 }
-
-template<typename T>
-class Leaf {
-public:
-    struct Settings {
-        bool secondMoment = false;
-        Float resetFactor = 0.f;
-    };
-
-    typedef T Aux;
-
-    atomic<Aux> aux;
-    atomic<Float> weight;
-    atomic<Float> density;
-
-    void splat(const Settings &settings, Float density, const Aux &aux, Float weight) {
-        if (settings.secondMoment)
-            density *= density;
-        
-        this->aux     += aux     * weight;
-        this->density += density * weight;
-        this->weight  += weight;
-    }
-
-    void build(const Settings &settings) {
-        density = density / weight;
-        aux     = aux     / weight;
-
-        if (settings.secondMoment)
-            density = std::sqrt(density);
-    }
-
-    void refine(const Settings &settings) {
-        weight  = weight * settings.resetFactor;
-        aux     = aux * weight;
-        density = density * weight;
-    }
-
-    Float pdf(const Settings &settings) const {
-        return density;
-    }
-
-    Leaf<T> sample(const Settings &settings) const {
-        return *this;
-    }
-
-    const atomic<Aux> &estimate() const {
-        return aux;
-    }
-
-    size_t totalNodeCount() const {
-        return 1;
-    }
-
-    void dump(const std::string &prefix) const {
-        std::cout << prefix << "Leaf (density=" << density << ", weight=" << weight << ")" << std::endl;
-    }
-
-    void write(std::ostream &os) const {
-        guiding::write(os, aux);
-        guiding::write(os, weight);
-        guiding::write(os, density);
-    }
-
-    void read(std::istream &is) {
-        guiding::read(is, aux);
-        guiding::read(is, weight);
-        guiding::read(is, density);
-    }
-};
 
 template<typename ...Args>
 struct is_empty {
