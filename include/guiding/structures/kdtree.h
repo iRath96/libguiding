@@ -63,8 +63,8 @@ struct KDTreeBase {
     }
 };
 
-template<int D, typename C>
-using KDTree = Tree<KDTreeBase<D>, C>;
+template<int D, typename C, typename A = Empty>
+using KDTree = Tree<KDTreeBase<D>, C, A>;
 
 }
 

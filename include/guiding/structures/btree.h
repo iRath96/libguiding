@@ -71,8 +71,8 @@ struct BTreeBase {
     }
 };
 
-template<int D, typename C>
-using BTree = Tree<BTreeBase<D>, C>;
+template<int D, typename C, typename A = Empty>
+using BTree = Tree<BTreeBase<D>, C, A>;
 
 }
 

@@ -11,6 +11,20 @@
 
 namespace guiding {
 
+struct Empty {
+    Empty operator+(const Empty &) const { return Empty(); }
+    Empty operator*(Float s) const { return Empty(); }
+    Empty operator/(Float s) const { return Empty(); }
+
+    void operator +=(const Empty &) {}
+};
+
+template<typename A, typename C>
+struct WrapAux {
+    A value;
+    C child;
+};
+
 template<typename T>
 class Leaf {
 public:
@@ -22,12 +36,13 @@ public:
     };
 
     typedef T Aux;
+    typedef T AuxWrapper;
 
     atomic<Aux> aux;
     atomic<Float> weight;
     atomic<Float> density;
 
-    void splat(const Settings &settings, Float density, const Aux &aux, Float weight) {
+    void splat(const Settings &settings, Float density, const AuxWrapper &aux, Float weight) {
         if (settings.secondMoment)
             density *= density;
         
@@ -122,18 +137,21 @@ struct TreeSplitting {
     };
 };
 
-template<typename Base, typename C>
+template<typename Base, typename C, typename A = Empty>
 class Tree : public Base {
 public:
     static constexpr auto Dimension = Base::Dimension;
     static constexpr auto Arity = Base::Arity;
     static constexpr auto IsLeaf = false;
+    static constexpr auto HasAux = !std::is_same<A, Empty>::value;
 
     typedef uint16_t Index;
 
     typedef C Child;
-    typedef typename Child::Aux Aux;
+    typedef A Aux;
     typedef typename Base::Vector Vector;
+
+    typedef WrapAux<Aux, typename Child::AuxWrapper> AuxWrapper;
 
     struct Settings {
         int minDepth = 0;
@@ -265,11 +283,18 @@ public:
     // methods for writing to the tree
 
     template<typename ...Args>
-    void splat(const Settings &settings, Float density, const Aux &aux, Float weight, const Vector &x, Args&&... params) {
+    void splat(
+        const Settings &settings,
+        Float density, const AuxWrapper &aux, Float weight,
+        const Vector &x, Args&&... params
+    ) {
+        this->weight = this->weight + weight;
+        this->aux    = this->aux    + aux.value;
+
         if (settings.filtering == TreeFilter::ENearest) {
             m_nodes[indexAt(x)].value.splat(
                 settings.child,
-                density, aux, weight,
+                density, aux.child, weight,
                 std::forward<Args>(params)...
             );
             return;
@@ -300,7 +325,7 @@ public:
 
             m_nodes[indexAt(y)].value.splat(
                 settings.child,
-                density, aux, weight,
+                density, aux.child, weight,
                 std::forward<Args>(params)...
             );
 
@@ -324,9 +349,12 @@ public:
      * the mean value over the leaf node size (i.e., its size has been cancelled out).
      */
     void build(const Settings &settings) {
+        if (this->weight > 1e-3) // @todo
+            this->aux = this->aux / this->weight;
+
         std::vector<TreeNode> newNodes;
         newNodes.reserve(m_nodes.size());
-        
+
         bool isValid = build(settings, 0, newNodes);
         if (newNodes[0].value.weight == 0 || newNodes[0].value.density == 0 || !isValid) {
             // you're building a tree without samples. good luck with that.
@@ -354,7 +382,6 @@ public:
         }
 
         density = norm;
-        updateRoot();
     }
 
     void build(const Settings &settings, Float scale) {
@@ -369,6 +396,9 @@ public:
         refine(settings, m_nodes[0], newNodes);
 
         m_nodes = newNodes;
+
+        aux = Aux();
+        weight = 0;
     }
 
     // methods that provide statistics
@@ -394,10 +424,6 @@ public:
             if (node.isLeaf())
                 count += node.value.totalNodeCount();
         return count;
-    }
-
-    const atomic<Aux> &estimate() const {
-        return m_nodes[0].value.estimate();
     }
 
     void dump(const std::string &prefix) const {
@@ -447,20 +473,14 @@ private:
         }
     }
 
-    void updateRoot() {
-        aux     = m_nodes[0].value.aux;
-        weight  = m_nodes[0].value.weight;
-    }
-
     void setUniform(Float weight = 0) {
         m_nodes.resize(1);
         m_nodes[0].markAsLeaf();
         m_nodes[0].value.density = 1;
-        m_nodes[0].value.aux     = Aux();
+        m_nodes[0].value.aux     = typename Child::Aux();
         m_nodes[0].value.weight  = weight;
 
         density = 0;
-        updateRoot();
     }
 
     size_t indexAt(const Vector &y) const {
@@ -559,7 +579,7 @@ private:
         Index index,
         const Vector &originMin, const Vector &originMax,
         const Vector &nodeMin, const Vector &nodeMax,
-        Float density, const Aux &aux, Float weight,
+        Float density, const AuxWrapper &aux, Float weight,
         Args&&... params
     ) {
         Float overlap = computeOverlap<Dimension>(originMin, originMax, nodeMin, nodeMax);
@@ -568,7 +588,7 @@ private:
             if (node.isLeaf()) {
                 node.value.splat(
                     settings.child,
-                    density, aux, weight * overlap,
+                    density, aux.child, weight * overlap,
                     std::forward<Args>(params)...
                 );
                 return;
@@ -628,7 +648,7 @@ private:
             auto &node = newNodes[newIndex].value;
             node.density = 0;
             node.weight  = 0;
-            node.aux     = Aux();
+            node.aux     = typename Child::Aux();
         }
 
         for (int child = 0; child < Arity; ++child) {
