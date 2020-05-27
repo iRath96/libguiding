@@ -19,7 +19,7 @@ Float defaultTarget(const T &x) {
     return Float(x);
 }
 
-template<typename S, typename C>
+template<typename C, typename S = Float>
 class Wrapper {
 public:
     typedef S Sample;
