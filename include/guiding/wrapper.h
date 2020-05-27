@@ -15,8 +15,8 @@
 namespace guiding {
 
 template<typename T>
-Float defaultTarget(const T &x, T &aux) {
-    return (aux = Float(x));
+Float defaultTarget(const T &x) {
+    return Float(x);
 }
 
 template<typename S, typename C>
@@ -25,13 +25,13 @@ public:
     typedef S Sample;
     typedef C Distribution;
     typedef typename Distribution::Vector Vector;
-    typedef typename Distribution::Aux Aux;
+    typedef typename Distribution::AuxWrapper AuxWrapper;
 
     struct Settings {
         Float uniformProb = 0.5f;
 
         // @todo could enhance performance by adding template for this
-        Float (*target)(const Sample &, Aux &) = defaultTarget<Sample>;
+        Float (*target)(const Sample &) = defaultTarget<Sample>;
 
         typename Distribution::Settings child;
     };
@@ -111,13 +111,12 @@ public:
     }
 
     template<typename ...Args>
-    void splat(const Sample &sample, Float weight, Args&&... params) {
+    void splat(const Sample &sample, const AuxWrapper &aux, Float weight, Args&&... params) {
         //if (settings.uniformProb == 1)
         //    return;
         
         {
-            Aux aux;
-            Float density = settings.target(sample, aux);
+            Float density = settings.target(sample);
 
             std::shared_lock lock(m_mutex);
             m_training.splat(
