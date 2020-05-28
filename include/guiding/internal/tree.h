@@ -13,8 +13,8 @@ namespace guiding {
 
 struct Empty {
     Empty operator+(const Empty &) const { return Empty(); }
-    Empty operator*(Float s) const { return Empty(); }
-    Empty operator/(Float s) const { return Empty(); }
+    Empty operator*(Float) const { return Empty(); }
+    Empty operator/(Float) const { return Empty(); }
 
     void operator +=(const Empty &) {}
 };
@@ -253,7 +253,7 @@ public:
         );
     }
 
-    const Child &sample(const Settings &settings, Float &pdf, Vector &x) const {
+    const Child &sample(const Settings &, Float &pdf, Vector &x) const {
         pdf = 1;
 
         Vector base, scale;
