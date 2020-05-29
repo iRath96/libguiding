@@ -76,11 +76,11 @@ public:
         density = density * weight;
     }
 
-    Float pdf(const Settings &settings) const {
+    Float pdf(const Settings &) const {
         return density;
     }
 
-    Leaf<T> sample(const Settings &settings) const {
+    Leaf<T> sample(const Settings &) const {
         return *this;
     }
 
