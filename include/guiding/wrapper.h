@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cstring>
 #include <cassert>
+#include <functional>
 
 #include <mutex>
 #include <shared_mutex>
@@ -37,6 +38,7 @@ public:
     };
 
     Settings settings;
+    std::function<void ()> onRebuild;
 
     Wrapper() {
         reset();
@@ -150,6 +152,9 @@ private:
         m_training.build(settings.child);
         m_sampling = m_training;
         m_training.refine(settings.child);
+
+        if (onRebuild)
+            onRebuild();
 
         //m_sampling.dump("");
 
