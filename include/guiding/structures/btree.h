@@ -52,9 +52,11 @@ struct BTreeBase {
                 int ci = (child << dim) | childIndex;
                 p[child & 1] += nodes[nodes[index].children[ci]].value.density;
             }
+
+            assert(p[0] >= 0 && p[1] >= 0);
+            assert((p[0] + p[1]) > 0);
             
             p[0] /= p[0] + p[1];
-            assert(p[0] >= 0 && p[1] >= 0);
 
             int slab = x[dim] >= p[0];
             childIndex |= slab << dim;
@@ -65,6 +67,12 @@ struct BTreeBase {
             } else
                 x[dim] = x[dim] / p[0];
             scale[dim] /= 2;
+
+            if (x[dim] >= 1)
+                x[dim] = std::nextafterf(1, 0);
+
+            assert(x[dim] >= 0);
+            assert(x[dim] < 1);
         }
 
         return childIndex;
