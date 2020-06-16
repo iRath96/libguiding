@@ -1,5 +1,5 @@
-#ifndef HUSSAR_CORE_GUIDING_H
-#define HUSSAR_CORE_GUIDING_H
+#ifndef LIBGUIDING_GUIDING_H
+#define LIBGUIDING_GUIDING_H
 
 #include <atomic>
 #include <fstream>

@@ -1,5 +1,5 @@
-#ifndef HUSSAR_GUIDING_KDTREE_H
-#define HUSSAR_GUIDING_KDTREE_H
+#ifndef LIBGUIDING_STRUCTURES_KDTREE_H
+#define LIBGUIDING_STRUCTURES_KDTREE_H
 
 #include "../internal/tree.h"
 
