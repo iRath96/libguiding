@@ -46,13 +46,18 @@ public:
         if (settings.secondMoment)
             density *= density;
         
+        assert(std::isfinite(density));
+        assert(density >= 0);
+        assert(std::isfinite(weight));
+        assert(weight >= 0);
+
         this->aux     += aux     * weight;
         this->density += density * weight;
         this->weight  += weight;
     }
 
     void build(const Settings &settings) {
-        if (weight < 1e-10)
+        if (weight < 1e-8) // @todo
             return;
         
         density = density / weight;
@@ -64,15 +69,15 @@ public:
 
     void build(const Settings &settings, Float scale) {
         density = density * scale;
-        aux     = aux * scale;
+        aux     = aux     * scale;
 
         if (settings.secondMoment)
             density = std::sqrt(density);
     }
 
     void refine(const Settings &settings) {
-        weight  = weight * settings.resetFactor;
-        aux     = aux * weight;
+        weight  = weight  * settings.resetFactor;
+        aux     = aux     * weight;
         density = density * weight;
     }
 
@@ -349,14 +354,18 @@ public:
      * the mean value over the leaf node size (i.e., its size has been cancelled out).
      */
     void build(const Settings &settings) {
-        if (this->weight > 1e-3) // @todo
+        if (this->weight > 1e-8) // @todo
             this->aux = this->aux / this->weight;
 
         std::vector<TreeNode> newNodes;
         newNodes.reserve(m_nodes.size());
 
         bool isValid = build(settings, 0, newNodes);
-        if (newNodes[0].value.weight == 0 || newNodes[0].value.density == 0 || !isValid) {
+        if (
+            newNodes[0].value.weight == 0 ||
+            newNodes[0].value.density == 0 ||
+            !isValid
+        ) {
             // you're building a tree without samples. good luck with that.
             //std::cout << "invalid tree: " << newNodes[0].value.weight
             //    << "/ " << newNodes[0].value.density
@@ -371,11 +380,11 @@ public:
         // normalize density
         m_nodes = newNodes;
         Float norm = m_nodes[0].value.density;
-        assert(!std::isnan(norm));
+        assert(std::isfinite(norm));
         assert(norm > 0);
 
         for (auto &node : m_nodes) {
-            assert(!std::isnan(node.value.density));
+            assert(std::isfinite(node.value.density));
             node.value.density = node.value.density / norm;
             if (!settings.leafReweighting)
                 node.value.aux = node.value.aux / m_nodes[0].value.weight;
@@ -662,7 +671,7 @@ private:
             auto &newParent = newNodes[newIndex].value;
             auto &newChild = newNodes[newChildIndex].value;
 
-            assert(!std::isnan(newChild.density));
+            assert(std::isfinite(newChild.density));
 
             newParent.density += newChild.density;
             newParent.aux     += newChild.aux;

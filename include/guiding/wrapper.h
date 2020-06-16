@@ -119,6 +119,10 @@ public:
         
         {
             Float density = settings.target(sample);
+            assert(std::isfinite(density));
+            assert(density >= 0);
+            assert(std::isfinite(weight));
+            assert(weight >= 0);
 
             std::shared_lock lock(m_mutex);
             m_training.splat(
