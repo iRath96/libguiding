@@ -7,6 +7,7 @@
 #include <vector>
 #include <fstream>
 #include <cstring>
+#include <cmath>
 #include <cassert>
 
 namespace guiding {
@@ -229,7 +230,7 @@ public:
 
     // methods for reading from the tree
 
-    const Child &at(const Settings &settings, const Vector &x) const {
+    const Child &at(const Settings &, const Vector &x) const {
         return m_nodes[indexAt(x)].value;
     }
 
@@ -384,7 +385,7 @@ public:
         assert(norm > 0);
 
         for (auto &node : m_nodes) {
-            assert(std::isfinite(node.value.density));
+            assert(std::isfinite(Float(node.value.density)));
             node.value.density = node.value.density / norm;
             if (!settings.leafReweighting)
                 node.value.aux = node.value.aux / m_nodes[0].value.weight;
@@ -393,7 +394,7 @@ public:
         density = norm;
     }
 
-    void build(const Settings &settings, Float scale) {
+    void build(const Settings &, Float) {
         std::cerr << "you can only disable leaf reweighting for trees that contain leaves" << std::endl;
         assert(false);
     }
@@ -671,7 +672,7 @@ private:
             auto &newParent = newNodes[newIndex].value;
             auto &newChild = newNodes[newChildIndex].value;
 
-            assert(std::isfinite(newChild.density));
+            assert(std::isfinite(Float(newChild.density)));
 
             newParent.density += newChild.density;
             newParent.aux     += newChild.aux;
