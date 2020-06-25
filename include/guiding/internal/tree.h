@@ -532,7 +532,7 @@ private:
         Index newIndex = newNodes.size();
         newNodes.push_back(node);
 
-        bool canSplit = newNodes.size() < (std::numeric_limits<Index>::max() + Arity);
+        bool canSplit = (newNodes.size() + Arity) < size_t(std::numeric_limits<Index>::max());
 
         Float criterion = node.value.density / scale;
         if (settings.splitting == TreeSplitting::EWeight)
