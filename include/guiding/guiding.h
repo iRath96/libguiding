@@ -1,5 +1,5 @@
-#ifndef HUSSAR_CORE_GUIDING_H
-#define HUSSAR_CORE_GUIDING_H
+#ifndef LIBGUIDING_GUIDING_H
+#define LIBGUIDING_GUIDING_H
 
 #include <atomic>
 #include <fstream>
@@ -12,7 +12,7 @@
 namespace guiding {
 
 template<typename T>
-void writeType(std::ostream &os, const T &t) {
+void writeType(std::ostream &os, const T &) {
     auto name = typeid(T).name();
     uint16_t len = strlen(name);
 
@@ -21,7 +21,7 @@ void writeType(std::ostream &os, const T &t) {
 }
 
 template<typename T>
-void readType(std::istream &is, T &t) {
+void readType(std::istream &is, T &) {
     uint16_t len;
     is.read((char *)&len, sizeof(len));
 

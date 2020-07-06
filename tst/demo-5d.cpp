@@ -7,7 +7,7 @@ ImVec4 clear_color = ImVec4(0.16, 0.16, 0.18, 1.0);
 
 class GuidingDemo {
 public:
-    using GuidingTree = Wrapper<Float, KDTree<3, BTree<2, Leaf<Float>>>>;
+    using GuidingTree = Wrapper<Float, KDTree<3, BTree<2, Leaf<Empty>>>>;
 
     DebugTexture leafTex;
 
@@ -46,7 +46,7 @@ public:
             //Float rr = std::min(x[0] * 2 + 0.05f, 1.f);
             //f *= rnd.get1D() < rr ? 1/rr : 0;
 
-            guiding.splat(f, 1/pdf, x, d);
+            guiding.splat(f, {}, 1/pdf, x, d);
         }
     }
 

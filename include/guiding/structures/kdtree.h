@@ -1,5 +1,5 @@
-#ifndef HUSSAR_GUIDING_KDTREE_H
-#define HUSSAR_GUIDING_KDTREE_H
+#ifndef LIBGUIDING_STRUCTURES_KDTREE_H
+#define LIBGUIDING_STRUCTURES_KDTREE_H
 
 #include "../internal/tree.h"
 
@@ -45,8 +45,10 @@ struct KDTreeBase {
             nodes[nodes[index].children[1]].value.density
         };
 
-        p[0] /= p[0] + p[1];
         assert(p[0] >= 0 && p[1] >= 0);
+        assert((p[0] + p[1]) > 0);
+        
+        p[0] /= p[0] + p[1];
 
         int dim = nodes[index].data.axis;
         int slab = x[dim] >= p[0];
@@ -59,11 +61,17 @@ struct KDTreeBase {
             x[dim] = x[dim] / p[0];
         scale[dim] /= 2;
 
+        if (x[dim] >= 1)
+            x[dim] = std::nextafterf(1, 0);
+
+        assert(x[dim] >= 0);
+        assert(x[dim] < 1);
+
         return childIndex;
     }
 };
 
-template<int D, typename C, typename A = Empty>
+template<int D, typename C = Leaf<Empty>, typename A = Empty>
 using KDTree = Tree<KDTreeBase<D>, C, A>;
 
 }

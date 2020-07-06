@@ -1,14 +1,11 @@
 # libguiding
-It's a guiding library!  
-Our dream has finally come true!
-_(at least in a very limited sense…)_
+Used internally for path guiding related projects.
+Might be helpful to some, but still highly experimental and only few structures are supported yet.
 
 ## Usage
 To use this library, you need to let it know what types to use for vectors and floats:
 
 ```c++
-#include <yourstuff>
-
 namespace guiding {
 
   using Float = float;
@@ -23,8 +20,10 @@ namespace guiding {
 
 }
 
-#include <guiding/distributions/btree.h>
-#include <guiding/wrappers/kdtree.h>
+// now include the structures you want to use
+#include <guiding/structures/kdtree.h>
+#include <guiding/structures/btree.h>
+#include <guiding/wrapper.h>
 
 {your code}
 ```
@@ -32,19 +31,18 @@ namespace guiding {
 You can then compose guiding trees like this:
 
 ```c++
+using namespace guiding;
+
 // A 2D-BTree embedded in a 3D-KDTree is represented by:
-using Muller =
-guiding::Wrapper< // takes care of MIS, building and target function
-  MySample,       // data provided to the target function
-  KDTree<3,       // spatial cache: 3D KD-Tree
-    BTree<2,      // directional cache: 2D B-Tree
-      Spectrum    // leaf nodes should also store spectrum data
+using Mueller =
+  Wrapper<     // takes care of MIS (uniform defensive sampling), building and target function
+    KDTree<3,  // spatial cache: 3D KD-Tree
+      BTree<2> // directional cache: 2D B-Tree
     >
-  >
->;
+  >;
 
 // you can configure it like this:
-auto guiding = Muller({ // wrapper settings
+auto guiding = Mueller({ // wrapper settings
   .uniformProb = 0.1f,
   //.target = myFunction // if you want a custom target function
 
@@ -74,9 +72,9 @@ Working with these guiding structures is especially easy:
 VectorXf<3> x = rnd.get3D();
 VectorXf<2> d = rnd.get2D();
 
-Float pdf  = guiding.sample(x, d); // takes care of MIS (uniform)
-MySample f = integrand(x, d);      // evaluate your integrand
-guiding.splat(f, 1/pdf, x, d);     // will re-build the tree automatically
+Float pdf = guiding.sample(x, d);  // takes care of MIS
+Float f   = integrand(x, d);       // evaluate your integrand
+guiding.splat(f, {}, 1/pdf, x, d); // will re-build the tree automatically once enough samples have been accumulated
 ```
 
 ## Compilation

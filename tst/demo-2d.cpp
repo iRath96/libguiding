@@ -9,7 +9,7 @@ ImVec4 clear_color = ImVec4(0.16, 0.16, 0.18, 1.0);
 
 class GuidingDemo {
 public:
-    using GuidingTree = Wrapper<Float, BTree<2, Leaf<Float>>>;
+    using GuidingTree = Wrapper<Float, BTree<2, Leaf<Empty>, Float>>;
 
     GuidingTree guiding;
     RandomSampler rnd;
@@ -50,7 +50,7 @@ public:
             Float rr = std::min(x[0] * 2 + 0.05f, 1.f);
             f *= rnd.get1D() < rr ? 1/rr : 0;
 
-            guiding.splat(f, 1/pdf, x);
+            guiding.splat(f, { .value = f }, 1/pdf, x);
         }
     }
 
@@ -99,7 +99,7 @@ void render() {
         ImGui::Begin("Guiding");
         ImGui::Text("Samples:  %zu" , demo.guiding.samplesSoFar());
         ImGui::Text("Nodes:    %zu" , demo.guiding.sampling().nodeCount());
-        ImGui::Text("Estimate: %.4f", float(demo.guiding.sampling().estimate()));
+        ImGui::Text("Estimate: %.4f", float(demo.guiding.sampling().aux));
 
         texIntegrand.draw([](ImVec2 pos) { return falseColor(demo.integrand(pos)); });
         ImGui::SameLine();

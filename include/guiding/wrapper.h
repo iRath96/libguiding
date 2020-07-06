@@ -1,5 +1,5 @@
-#ifndef HUSSAR_GUIDING_POINTWRAPPER_H
-#define HUSSAR_GUIDING_POINTWRAPPER_H
+#ifndef LIBGUIDING_WRAPPER_H
+#define LIBGUIDING_WRAPPER_H
 
 #include "guiding.h"
 
@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cstring>
 #include <cassert>
+#include <functional>
 
 #include <mutex>
 #include <shared_mutex>
@@ -15,28 +16,29 @@
 namespace guiding {
 
 template<typename T>
-Float defaultTarget(const T &x, T &aux) {
-    return (aux = Float(x));
+Float defaultTarget(const T &x) {
+    return Float(x);
 }
 
-template<typename S, typename C>
+template<typename C, typename S = Float>
 class Wrapper {
 public:
     typedef S Sample;
     typedef C Distribution;
     typedef typename Distribution::Vector Vector;
-    typedef typename Distribution::Aux Aux;
+    typedef typename Distribution::AuxWrapper AuxWrapper;
 
     struct Settings {
         Float uniformProb = 0.5f;
 
         // @todo could enhance performance by adding template for this
-        Float (*target)(const Sample &, Aux &) = defaultTarget<Sample>;
+        Float (*target)(const Sample &) = defaultTarget<Sample>;
 
         typename Distribution::Settings child;
     };
 
     Settings settings;
+    std::function<void ()> onRebuild;
 
     Wrapper() {
         reset();
@@ -111,13 +113,16 @@ public:
     }
 
     template<typename ...Args>
-    void splat(const Sample &sample, Float weight, Args&&... params) {
+    void splat(const Sample &sample, const AuxWrapper &aux, Float weight, Args&&... params) {
         //if (settings.uniformProb == 1)
         //    return;
         
         {
-            Aux aux;
-            Float density = settings.target(sample, aux);
+            Float density = settings.target(sample);
+            assert(std::isfinite(density));
+            assert(density >= 0);
+            assert(std::isfinite(weight));
+            assert(weight >= 0);
 
             std::shared_lock lock(m_mutex);
             m_training.splat(
@@ -151,6 +156,9 @@ private:
         m_training.build(settings.child);
         m_sampling = m_training;
         m_training.refine(settings.child);
+
+        if (onRebuild)
+            onRebuild();
 
         //m_sampling.dump("");
 
