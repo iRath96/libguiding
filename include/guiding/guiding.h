@@ -162,7 +162,7 @@ Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const Vec
 
     Float overlap = 1;
     for (int i = 0; i < D; ++i)
-        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), 0.0f);
+        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), Float(0.0));
     return overlap;
 }
 
