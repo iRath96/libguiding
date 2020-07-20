@@ -162,7 +162,7 @@ Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const Vec
 
     Float overlap = 1;
     for (int i = 0; i < D; ++i)
-        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), 0.0f);
+        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), Float(0.0));
     return overlap;
 }
 
@@ -196,7 +196,7 @@ struct RecurseChild<Child> {
     typedef Child Type;
 };
 
-Float random() {
+inline Float random() {
     // @todo some people might want to override this!
     static std::default_random_engine generator;
     return std::generate_canonical<Float, std::numeric_limits<Float>::digits>(generator);
