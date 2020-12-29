@@ -20,6 +20,21 @@ struct Empty {
     void operator +=(const Empty &) {}
 };
 
+template<>
+class atomic<Empty> {
+public:
+    atomic() {}
+    atomic(const atomic<Empty> &other)  {}
+    void operator=(const Empty &value) {}
+    void operator=(const atomic<Empty> &other) {}
+    void operator+=(const Empty &value) {}
+    void operator+=(const atomic<Empty> &value) {}
+    Empty operator/(Float value) { return {}; }
+    Empty operator*(Float value) { return {}; }
+    void write(std::ostream &os) const {}
+    void read(std::istream &is) {}
+};
+
 template<typename A, typename C>
 struct WrapAux {
     A value;
