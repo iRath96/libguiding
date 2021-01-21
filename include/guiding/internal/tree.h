@@ -13,11 +13,26 @@
 namespace guiding {
 
 struct Empty {
-    Empty operator+(const Empty &) const { return Empty(); }
-    Empty operator*(Float) const { return Empty(); }
-    Empty operator/(Float) const { return Empty(); }
+    GUIDING_CPU_GPU Empty operator+(const Empty &) const { return Empty(); }
+    GUIDING_CPU_GPU Empty operator*(Float) const { return Empty(); }
+    GUIDING_CPU_GPU Empty operator/(Float) const { return Empty(); }
 
-    void operator +=(const Empty &) {}
+    GUIDING_CPU_GPU void operator +=(const Empty &) {}
+};
+
+template<>		
+class atomic<Empty> {
+public:
+    atomic() {}
+    atomic(const atomic<Empty> &) {}
+    void operator=(const Empty &) {}
+    void operator=(const atomic<Empty> &) {}
+    void operator+=(const Empty &) {}
+    void operator+=(const atomic<Empty> &) {}
+    Empty operator/(Float) { return {}; }
+    Empty operator*(Float) { return {}; }
+    void write(std::ostream &) const {}
+    void read(std::istream &) {}
 };
 
 template<typename A, typename C>
@@ -43,7 +58,7 @@ public:
     atomic<Float> weight;
     atomic<Float> density;
 
-    void splat(const Settings &settings, Float density, const AuxWrapper &aux, Float weight) {
+    GUIDING_CPU_GPU void splat(const Settings &settings, Float density, const AuxWrapper &aux, Float weight) {
         if (settings.secondMoment)
             density *= density;
         
@@ -82,19 +97,19 @@ public:
         density = density * weight;
     }
 
-    Float pdf(const Settings &) const {
+    GUIDING_CPU_GPU Float pdf(const Settings &) const {
         return density;
     }
 
-    Leaf<T> sample(const Settings &) const {
+    GUIDING_CPU_GPU Leaf<T> sample(const Settings &) const {
         return *this;
     }
 
-    const atomic<Aux> &estimate() const {
+    GUIDING_CPU_GPU const atomic<Aux> &estimate() const {
         return aux;
     }
 
-    size_t totalNodeCount() const {
+    GUIDING_CPU_GPU size_t totalNodeCount() const {
         return 1;
     }
 
@@ -185,15 +200,15 @@ private:
         Child value; // the accumulation of the estimator (i.e., sum of integrand*weight)
         typename Base::ChildData data;
         
-        bool isLeaf() const {
+        GUIDING_CPU_GPU bool isLeaf() const {
             return children[0] == 0;
         }
 
-        void markAsLeaf() {
+        GUIDING_CPU_GPU void markAsLeaf() {
             children[0] = 0;
         }
 
-        int depth(const std::vector<TreeNode, Allocator<TreeNode>> &nodes) const {
+        GUIDING_CPU_GPU int depth(const std::vector<TreeNode, Allocator<TreeNode>> &nodes) const {
             if (isLeaf())
                 return 0;
 
@@ -231,12 +246,12 @@ public:
 
     // methods for reading from the tree
 
-    const Child &at(const Settings &, const Vector &x) const {
+    GUIDING_CPU_GPU const Child &at(const Settings &, const Vector &x) const {
         return m_nodes[indexAt(x)].value;
     }
 
     template<typename ...Args>
-    Float pdf(const Settings &settings, const Vector &x, Args&&... params) const {
+    GUIDING_CPU_GPU Float pdf(const Settings &settings, const Vector &x, Args&&... params) const {
         if constexpr (!is_empty<Args...>::value)
             return m_nodes[indexAt(x)].value.pdf(
                 settings.child,
@@ -247,7 +262,7 @@ public:
     }
 
     template<typename ...Args>
-    const typename RecurseChild<Child, Args...>::Type &sample(
+    GUIDING_CPU_GPU const typename RecurseChild<Child, Args...>::Type &sample(
         const Settings &settings,
         Float &pdf,
         Vector &x,
@@ -260,7 +275,7 @@ public:
         );
     }
 
-    const Child &sample(const Settings &, Float &pdf, Vector &x) const {
+    GUIDING_CPU_GPU const Child &sample(const Settings &, Float &pdf, Vector &x) const {
         pdf = 1;
 
         Vector base, scale;
@@ -290,7 +305,7 @@ public:
     // methods for writing to the tree
 
     template<typename ...Args>
-    void splat(
+    GUIDING_CPU_GPU void splat(
         const Settings &settings,
         Float density, const AuxWrapper &aux, Float weight,
         const Vector &x, Args&&... params
@@ -339,6 +354,10 @@ public:
             return;
         }
         
+#ifndef __CUDACC__
+        // we currently do not support TreeFilter::EBox in CUDA, since OptiX does
+        // not allow recursion, which is required for splatFiltered to work
+
         splatFiltered(
             settings,
             0,
@@ -347,6 +366,7 @@ public:
             density, aux, weight / volume,
             std::forward<Args>(params)...
         );
+#endif
     }
 
     /**
@@ -355,7 +375,7 @@ public:
      * After building, each leaf node will have a value that is an estimate over
      * the mean value over the leaf node size (i.e., its size has been cancelled out).
      */
-    void build(const Settings &settings) {
+    GUIDING_CPU_GPU void build(const Settings &settings) {
         if (this->weight > 1e-8) // @todo
             this->aux = this->aux / this->weight;
 
@@ -414,22 +434,22 @@ public:
 
     // methods that provide statistics
 
-    int depth() const {
+    GUIDING_CPU_GPU int depth() const {
         return m_nodes[0].depth(m_nodes);
     }
 
-    int depthAt(const Vector &x) const {
+    GUIDING_CPU_GPU int depthAt(const Vector &x) const {
         int depth;
         Vector min, max;
         indexAt(x, depth, min, max);
         return depth;
     }
 
-    size_t nodeCount() const {
+    GUIDING_CPU_GPU size_t nodeCount() const {
         return m_nodes.size();
     }
 
-    size_t totalNodeCount() const { // @todo should be called totalLeafCount()
+    GUIDING_CPU_GPU size_t totalNodeCount() const { // @todo should be called totalLeafCount()
         size_t count = 0;
         for (auto &node : m_nodes)
             if (node.isLeaf())
@@ -494,13 +514,13 @@ private:
         density = 0;
     }
 
-    size_t indexAt(const Vector &y) const {
+    GUIDING_CPU_GPU size_t indexAt(const Vector &y) const {
         int depth;
         Vector min, max;
         return indexAt(y, depth, min, max);
     }
 
-    size_t indexAt(const Vector &y, int &depth, Vector &min, Vector &max) const {
+    GUIDING_CPU_GPU size_t indexAt(const Vector &y, int &depth, Vector &min, Vector &max) const {
         Vector x = y;
         for (int dim = 0; dim < Dimension; ++dim) {
             min[dim] = 0;
@@ -585,7 +605,7 @@ private:
     }
 
     template<typename ...Args>
-    void splatFiltered(
+    GUIDING_CPU_GPU void splatFiltered(
         const Settings &settings,
         Index index,
         const Vector &originMin, const Vector &originMax,

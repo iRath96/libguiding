@@ -130,6 +130,42 @@ private:
     std::mutex m_mutex;
 };
 
+#ifdef __CUDACC__
+template<>
+class atomic<Float> {
+public:
+    atomic() {}
+
+    atomic(const atomic<Float> &other) {
+        *this = other;
+    }
+
+    operator Float() const { return m_value; }
+
+    GUIDING_CPU_GPU void operator=(const Float &value) {
+        m_value = value;
+    }
+
+    GUIDING_CPU_GPU void operator=(const atomic<Float> &other) {
+        m_value = other;
+    }
+
+    GUIDING_CPU_GPU void operator+=(const Float &value) {
+        atomicAdd(&m_value, value);
+    }
+
+    void write(std::ostream &os) const {
+        guiding::write(os, m_value);
+    }
+
+    void read(std::istream &is) {
+        guiding::read(is, m_value);
+    }
+
+protected:
+    Float m_value;
+};
+#else
 template<>
 class atomic<Float> : public std::atomic<Float> {
 public:
@@ -139,15 +175,15 @@ public:
         *this = other;
     }
 
-    void operator=(const Float &value) {
+    GUIDING_CPU_GPU void operator=(const Float &value) {
         store(value, std::memory_order_relaxed);
     }
 
-    void operator=(const atomic<Float> &other) {
+    GUIDING_CPU_GPU void operator=(const atomic<Float> &other) {
         *this = other.load();
     }
 
-    void operator+=(const Float &value) {
+    GUIDING_CPU_GPU void operator+=(const Float &value) {
         auto current = load();
         while (!compare_exchange_weak(current, current + value));
     }
@@ -163,16 +199,17 @@ public:
         store(value);
     }
 };
+#endif
 
 template<int D>
-Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const VectorXf<D> &min2, const VectorXf<D> &max2) {
+GUIDING_CPU_GPU Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const VectorXf<D> &min2, const VectorXf<D> &max2) {
     // @todo this ignores the fact that a hypervolume can extend beyond the [0,1) interval
     // using this directly will give you a bias if you are not using leaf reweighting
     // (directions at the corners will have smaller weights)
 
     Float overlap = 1;
     for (int i = 0; i < D; ++i)
-        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), 0.0f);
+        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), Float(0));
     return overlap;
 }
 
