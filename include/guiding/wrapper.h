@@ -75,7 +75,7 @@ public:
         
         std::shared_lock lock(m_mutex);
 
-        Float pdf = 1 - settings.uniformProb;
+        Float pdf = 1 - settings.uniformProb; // guiding probability
         if (x[0] < settings.uniformProb) {
             x[0] /= settings.uniformProb;
             pdf *= m_sampling.pdf(
@@ -86,12 +86,15 @@ public:
         } else {
             x[0] -= settings.uniformProb;
             x[0] /= 1 - settings.uniformProb;
+
+            Float gpdf = 1;
             m_sampling.sample(
                 settings.child,
-                pdf,
+                gpdf,
                 x,
                 std::forward<Args>(params)...
             );
+            pdf *= gpdf;
         }
 
         pdf += settings.uniformProb;
@@ -108,8 +111,6 @@ public:
             settings.child,
             std::forward<Args>(params)...
         );
-
-        return 1;
     }
 
     template<typename ...Args>

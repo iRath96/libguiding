@@ -20,21 +20,6 @@ struct Empty {
     void operator +=(const Empty &) {}
 };
 
-template<>
-class atomic<Empty> {
-public:
-    atomic() {}
-    atomic(const atomic<Empty> &other)  {}
-    void operator=(const Empty &value) {}
-    void operator=(const atomic<Empty> &other) {}
-    void operator+=(const Empty &value) {}
-    void operator+=(const atomic<Empty> &value) {}
-    Empty operator/(Float value) { return {}; }
-    Empty operator*(Float value) { return {}; }
-    void write(std::ostream &os) const {}
-    void read(std::istream &is) {}
-};
-
 template<typename A, typename C>
 struct WrapAux {
     A value;
@@ -158,7 +143,7 @@ struct TreeSplitting {
     };
 };
 
-template<typename Base, typename C, typename A = Empty>
+template<typename Base, typename C, typename A = Empty, template <typename> class Allocator = std::allocator>
 class Tree : public Base {
 public:
     static constexpr auto Dimension = Base::Dimension;
@@ -208,7 +193,7 @@ private:
             children[0] = 0;
         }
 
-        int depth(const std::vector<TreeNode> &nodes) const {
+        int depth(const std::vector<TreeNode, Allocator<TreeNode>> &nodes) const {
             if (isLeaf())
                 return 0;
 
@@ -231,7 +216,8 @@ private:
         }
     };
 
-    std::vector<TreeNode> m_nodes;
+    using TreeNodeVector = std::vector<TreeNode, Allocator<TreeNode>>;
+    TreeNodeVector m_nodes;
 
 public:
     Aux   aux;
@@ -373,7 +359,7 @@ public:
         if (this->weight > 1e-8) // @todo
             this->aux = this->aux / this->weight;
 
-        std::vector<TreeNode> newNodes;
+        TreeNodeVector newNodes;
         newNodes.reserve(m_nodes.size());
 
         bool isValid = build(settings, 0, newNodes);
@@ -416,7 +402,7 @@ public:
 
     void refine(const Settings &settings) {
         // @todo could use move constructor for performance and refine directly into other tree
-        std::vector<TreeNode> newNodes;
+        TreeNodeVector newNodes;
         newNodes.reserve(m_nodes.size());
         refine(settings, m_nodes[0], newNodes);
 
@@ -539,7 +525,7 @@ private:
 
     size_t refine(
         const Settings &settings,
-        const TreeNode &node, std::vector<TreeNode> &newNodes,
+        const TreeNode &node, TreeNodeVector &newNodes,
         int depth = 0, Float scale = 1
     ) const {
         assert(newNodes.size() <= std::numeric_limits<Index>::max());
@@ -643,7 +629,7 @@ private:
      * After this pass, the density of each node will correspond to the average weight within it,
      * i.e., after this pass you must still normalize the densities.
      */
-    bool build(const Settings &settings, size_t index, std::vector<TreeNode> &newNodes, Float scale = 1) {
+    bool build(const Settings &settings, size_t index, TreeNodeVector &newNodes, Float scale = 1) {
         auto &node = m_nodes[index];
 
         // insert ourself into the tree

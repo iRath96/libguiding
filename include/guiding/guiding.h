@@ -9,6 +9,16 @@
 #include <mutex>
 #include <random>
 
+#ifdef __CUDACC__
+#define GUIDING_CPU_GPU __host__ __device__
+#else
+/**
+ * @brief Allows functions and methods to be executed both on the CPU and the GPU.
+ * @note Only defined when __CUDACC__ is set.
+ */
+#define GUIDING_CPU_GPU
+#endif
+
 namespace guiding {
 
 template<typename T>
@@ -162,7 +172,7 @@ Float computeOverlap(const VectorXf<D> &min1, const VectorXf<D> &max1, const Vec
 
     Float overlap = 1;
     for (int i = 0; i < D; ++i)
-        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), Float(0.0));
+        overlap *= std::max(std::min(max1[i], max2[i]) - std::max(min1[i], min2[i]), 0.0f);
     return overlap;
 }
 
@@ -196,7 +206,7 @@ struct RecurseChild<Child> {
     typedef Child Type;
 };
 
-inline Float random() {
+static inline Float random() {
     // @todo some people might want to override this!
     static std::default_random_engine generator;
     return std::generate_canonical<Float, std::numeric_limits<Float>::digits>(generator);

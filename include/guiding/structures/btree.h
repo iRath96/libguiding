@@ -36,8 +36,8 @@ struct BTreeBase {
         return childIndex;
     }
 
-    template<typename Node>
-    int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node> &nodes) const {
+    template<typename Node, typename Allocator>
+    int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node, Allocator> &nodes) const {
         int childIndex = 0;
 
         // sample each axis individually to determine sampled child
@@ -79,8 +79,8 @@ struct BTreeBase {
     }
 };
 
-template<int D, typename C = Leaf<Empty>, typename A = Empty>
-using BTree = Tree<BTreeBase<D>, C, A>;
+template<int D, typename C = Leaf<Empty>, typename A = Empty, template <typename> class Allocator = std::allocator>
+using BTree = Tree<BTreeBase<D>, C, A, Allocator>;
 
 }
 

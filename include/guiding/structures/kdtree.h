@@ -36,8 +36,8 @@ struct KDTreeBase {
         return childIndex;
     }
 
-    template<typename Node>
-    int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node> &nodes) const {
+    template<typename Node, typename Allocator>
+    int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node, Allocator> &nodes) const {
         int childIndex = 0;
 
         Float p[2] = {
@@ -71,8 +71,8 @@ struct KDTreeBase {
     }
 };
 
-template<int D, typename C = Leaf<Empty>, typename A = Empty>
-using KDTree = Tree<KDTreeBase<D>, C, A>;
+template<int D, typename C = Leaf<Empty>, typename A = Empty, template <typename> class Allocator = std::allocator>
+using KDTree = Tree<KDTreeBase<D>, C, A, Allocator>;
 
 }
 
