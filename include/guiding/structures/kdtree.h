@@ -20,12 +20,12 @@ struct KDTreeBase {
         data.axis = (data.axis + 1) % Dimension;
     }
 
-    void boxForChild(int childIndex, Vector &min, Vector &max, const ChildData &data) const {
+    GUIDING_CPU_GPU void boxForChild(int childIndex, Vector &min, Vector &max, const ChildData &data) const {
         Vector &affected = childIndex ? min : max;
         affected[data.axis] = (min[data.axis] + max[data.axis]) / 2;
     }
 
-    int childIndex(Vector &x, const ChildData &data) const {
+    GUIDING_CPU_GPU int childIndex(Vector &x, const ChildData &data) const {
         int childIndex = 0;
         int slab = x[data.axis] >= 0.5;
         childIndex = slab;
@@ -36,8 +36,8 @@ struct KDTreeBase {
         return childIndex;
     }
 
-    template<typename Node>
-    int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node> &nodes) const {
+    template<typename Node, typename Allocator>
+    GUIDING_CPU_GPU int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node, Allocator> &nodes) const {
         int childIndex = 0;
 
         Float p[2] = {
@@ -71,8 +71,8 @@ struct KDTreeBase {
     }
 };
 
-template<int D, typename C = Leaf<Empty>, typename A = Empty>
-using KDTree = Tree<KDTreeBase<D>, C, A>;
+template<int D, typename C = Leaf<Empty>, typename A = Empty, template <typename> class Allocator = std::allocator>
+using KDTree = Tree<KDTreeBase<D>, C, A, Allocator>;
 
 }
 

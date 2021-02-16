@@ -16,14 +16,14 @@ struct BTreeBase {
 
     void afterSplit(ChildData &) const {}
 
-    void boxForChild(int childIndex, Vector &min, Vector &max, const ChildData &) const {
+    GUIDING_CPU_GPU void boxForChild(int childIndex, Vector &min, Vector &max, const ChildData &) const {
         for (int dim = 0; dim < Dimension; ++dim) {
             Vector &affected = childIndex & (1 << dim) ? min : max;
             affected[dim] = (min[dim] + max[dim]) / 2;
         }
     }
 
-    int childIndex(Vector &x, const ChildData &) const {
+    GUIDING_CPU_GPU int childIndex(Vector &x, const ChildData &) const {
         int childIndex = 0;
         for (int dim = 0; dim < Dimension; ++dim) {
             int slab = x[dim] >= 0.5;
@@ -36,8 +36,8 @@ struct BTreeBase {
         return childIndex;
     }
 
-    template<typename Node>
-    int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node> &nodes) const {
+    template<typename Node, typename Allocator>
+    GUIDING_CPU_GPU int sampleChild(Vector &x, Vector &base, Vector &scale, int index, const std::vector<Node, Allocator> &nodes) const {
         int childIndex = 0;
 
         // sample each axis individually to determine sampled child
@@ -79,8 +79,8 @@ struct BTreeBase {
     }
 };
 
-template<int D, typename C = Leaf<Empty>, typename A = Empty>
-using BTree = Tree<BTreeBase<D>, C, A>;
+template<int D, typename C = Leaf<Empty>, typename A = Empty, template <typename> class Allocator = std::allocator>
+using BTree = Tree<BTreeBase<D>, C, A, Allocator>;
 
 }
 
