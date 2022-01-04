@@ -49,7 +49,7 @@ public:
         reset();
     }
 
-    void operator=(const Wrapper<S, C> &other) {
+    void operator=(const Wrapper<C, S> &other) {
         settings   = other.settings;
         m_sampling = other.m_sampling;
         m_training = other.m_training;

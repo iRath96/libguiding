@@ -9,7 +9,7 @@ ImVec4 clear_color = ImVec4(0.16, 0.16, 0.18, 1.0);
 
 class GuidingDemo {
 public:
-    using GuidingTree = Wrapper<Float, BTree<2, Leaf<Empty>, Float>>;
+    using GuidingTree = Wrapper<BTree<2, Leaf<Empty>, Float>, Float>;
 
     GuidingTree guiding;
     RandomSampler rnd;

@@ -7,7 +7,7 @@ ImVec4 clear_color = ImVec4(0.16, 0.16, 0.18, 1.0);
 
 class GuidingDemo {
 public:
-    using GuidingTree = Wrapper<Float, KDTree<3, BTree<2, Leaf<Empty>>>>;
+    using GuidingTree = Wrapper<KDTree<3, BTree<2, Leaf<Empty>>>, Float>;
 
     DebugTexture leafTex;
 
